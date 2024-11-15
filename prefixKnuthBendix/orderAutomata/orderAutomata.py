@@ -5,6 +5,7 @@
 #####
 
 from ..FSA import FSA # Ash DeClerk's FSA module
+import copy
 
 
 def make_ordering(alphabet, order_automaton):
@@ -510,3 +511,34 @@ def rightrpo(ordering, length):
     # Or at least more annoying to think about. We can use the same basic strategy of mimicking a first-in-first-out stack automaton.
     # That said, it's not a priority right now. I'll work on this *later*.
     pass
+
+def piecewise_ordering(automaton, orderings):
+    # This is set up a bit differently from the other orderings here. Rather
+    # than outputting an FSA, this outputs the actual ordering function,
+    # i.e. a function with inputs (u, v, prefixes) and outputs (left, right, incomp),
+    # where left is the set of words w in prefixes with wu < wv, similar for right,
+    # and incomp being the set of words w in prefixes with wu and wv incomparable.
+    # The orderings should be appropriate functions for the state orderings.
+    state_machines = [0] * automaton.states
+    source_machines = [0] * automaton.states
+    for state in range(automaton.states):
+        state_machines[state] = copy.deepcopy(automaton)
+        state_machines[state].accepts = {state}
+        source_machines[state] = copy.deepcopy(automaton)
+        source_machines[state].change_init(state)
+    def ordering(u, v, prefixes):
+        left = FSA.empty_FSA(automaton.alphabet)
+        right = FSA.empty_FSA(automaton.alphabet)
+        for state in range(automaton.states):
+            target_u = source_machines[state].target_state(u)
+            target_v = source_machines[state].target_state(v)
+            if target_u == target_v:
+                (gained_left, gained_right, _) = orderings[target_u](u, v, prefixes)
+                gained_left = FSA.intersection(gained_left, state_machines[state])
+                gained_right = FSA.intersection(gained_right, state_machines[state])
+                left = FSA.union(left, gained_left)
+                right = FSA.union(right, gained_right)
+        incomp = FSA.intersection(FSA.complement(left), FSA.complement(right))
+        return (left, right, incomp)
+    return ordering
+
