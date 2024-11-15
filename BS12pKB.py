@@ -98,6 +98,11 @@ for let in alph:
 # I'm not 100% convinced that this *is* compatible with concatenation on the right
 # in all cases. But it's late, and I want to get code running, so I'll deal with
 # the proof later.  
+# Update now that I've thought about it: Yeah, this is fine. Tedious to check,
+# but all of the state orderings play nice with all of the transitions.
+# (I.e., if u and v land at the same state and u < v with the ordering at that
+# state, then ul < vl with the ordering at the state that ul and vl land at.)
+# It's a straightforward induction proof from there. 
 
 def ordering_a(u, v):
     scores_u = []
