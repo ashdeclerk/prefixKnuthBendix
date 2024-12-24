@@ -501,7 +501,7 @@ def determinize(nfa):
         if is_nonish(let):
             nonish_letters.update({let})
     alphabet.difference_update(nonish_letters)
-    out = FSA(stateCount, accepts, alphabet, transitions)
+    out = BFS(FSA(stateCount, accepts, alphabet, transitions))
     return out
 
 def star(fsa):
@@ -595,7 +595,7 @@ def quotient(fsa1, fsa2):
         temp1 = BFS(temp1)
         if len(temp1.accepts) > 0:
             outAccepts.update({state})
-    return FSA(outStates, outAccepts, outAlphabet, outTransitions)
+    return BFS(FSA(outStates, outAccepts, outAlphabet, outTransitions))
 
 def strict_quotient(fsa1, fsa2):
     if fsa1.alphabet != fsa2.alphabet:
@@ -612,7 +612,7 @@ def strict_quotient(fsa1, fsa2):
         if temp1.states == 1:
             if temp1.accepts == [0]:
                 outAccepts.update({state})
-    return FSA(outStates, outAccepts, outAlphabet, outTransitions)
+    return BFS(FSA(outStates, outAccepts, outAlphabet, outTransitions))
 
 def concatenation(fsa1, fsa2):
     if fsa2.states == 1:
@@ -634,7 +634,7 @@ def concatenation(fsa1, fsa2):
     for state in range(fsa2.states):
         for let in fsa1.alphabet:
             nfa1.transitions[let][state + fsa1.states].update([fsa2.transitions[let][state] + fsa1.states])
-    out = BFS(determinize(nfa1))
+    out = determinize(nfa1)
     return out
 
 def diagonal(alph):
@@ -815,7 +815,7 @@ def sync_singleton_concatenate(fsa, word):
     out = FSA.FSA(1, {0}, fsa.alphabet, transitions)
     for state in range(fsa.states):
         pre = copy.deepcopy(fsa)
-        pre.accepts = [state]
+        pre.accepts = {state}
         pre = FSA.remove_padded_words(pre)
         post0 = copy.deepcopy(fsa)
         post0.change_init(state)
@@ -838,3 +838,100 @@ def sync_singleton_concatenate(fsa, word):
         post1 = product(post1, single_word_FSA(word))
         out = union(out, concatenation(pre, union(post0, post1)))
     return out
+
+def singletons_diagonal_concatenate(word1, word2, alph):
+    # This returns the FSA accepting (word1 x word2) . D*
+    ordered_alph = list(alph)
+    if len(ordered_alph) == 1:
+        a = ordered_alph[0]
+        squared_alph = [(a, a), (a, None), (None, a)]
+        minlen = min(len(word1), len(word2))
+        maxlen = max(len(word1), len(word2))
+        states = maxlen + 1
+        accepts = {maxlen}
+        transitions = {}
+        for let in squared_alph:
+            transitions[let] = [states - 1] * states
+        for i in range(min(len(word1), len(word2))):
+            transitions[(a, a)][i] = i + 1
+        transitions[(a, a)][min(len(word1), len(word2))] = min(len(word1), len(word2))
+        if len(word1) > len(word2):
+            for i in range(maxlen - minlen):
+                transitions[(a, None)][minlen + i] = minlen + i + 1
+        elif len(word2) > len(word1):
+            for i in range(maxlen - minlen):
+                transitions[(None, a)][minlen + i] = minlen + i + 1
+        return FSA(states, accepts, squared_alph, transitions)
+    squared_alph = []
+    transitions = {}
+    minlen = min(len(word1), len(word2))
+    diff = max(len(word1), len(word2)) - minlen
+    # There are minlen states leading up to lattice of memory states
+    # There are 1 + |alph| + ... + |alph|^diff + ... + |alph| + 1 such memory states
+    # And there's one fail state.
+    states = minlen + 1 + 2 * (len(alph) ** (diff + 1) - 1) // (len(alph) - 1) - len(alph) ** diff
+    accepts = {states - 2}
+    for let1 in alph:
+        for let2 in alph:
+            transitions[(let1, let2)] = [states - 1] * states
+            squared_alph.append((let1, let2))
+        transitions[(let1, None)] = [states - 1] * states
+        squared_alph.append((let1, None))
+        transitions[(None, let1)] = [states - 1] * states
+        squared_alph.append((None, let1))
+    for index in range(min(len(word1), len(word2))):
+        transitions[(word1[index], word2[index])][index] = index + 1
+    # At this point we are in the memory lattice.
+    # Conveniently, the smallest state of the lattice is state minlen.
+    layer_start = minlen
+    next_layer_start = minlen + 1
+    if len(word1) > len(word2):
+        for index in range(diff):
+            # We need to deal with going from the indexth layer to the (index + 1)th layer.
+            # The first letter is still forced. The second letter is free.
+            # There are |alph| ^index starting states to handle here, each going to |alph| ending states.
+            for j in range(len(alph) ** index):
+                for k, letter in enumerate(ordered_alph):
+                    transitions[(word1[minlen + index], letter)][layer_start + j] = next_layer_start + j * len(alph) + k
+            layer_start = next_layer_start
+            next_layer_start += len(alph) ** (index + 1)
+        # Next we deal with going from the diffth layer to itself. This means
+        # figuring out what the oldest remembered letter is, making sure we
+        # have that as our letter on the left, and encoding the new letter on
+        # that's on the right.
+        # Happily for us, we've encoded things in base-|alph|, with the most
+        # significant digit being the oldest letter. All offset by the current
+        # value of `layer_start`, of course.
+        for i, oldest_letter in enumerate(ordered_alph):
+            for j in range(len(alph) ** (diff - 1)):
+                for k, new_letter in enumerate(ordered_alph):
+                    transitions[(oldest_letter, new_letter)][layer_start + i * len(alph) ** (diff - 1) + j] = layer_start + j * len(alph) + k
+        # And now we deal with new letters being padding.
+        # In the diff + indexth layer, we need to check the oldest letter,
+        # which is in the |alph| ^ (diff - 1 - index) place,
+        # and then shift to the remainder.
+        for index in range(diff):
+            for j, oldest_letter in enumerate(ordered_alph):
+                for k in range(len(alph) ** (diff - 1 - index)):
+                    transitions[(oldest_letter, None)][layer_start + j * len(alph) ** (diff - 1 - index) + k] = next_layer_start + k
+            layer_start = next_layer_start
+            next_layer_start += len(alph) ** (diff - 1 - index)
+    elif len(word2) > len(word1):
+        # Similar, but with roles reversed.
+        for index in range(diff):
+            for j in range(len(alph) ** index):
+                for k, letter in enumerate(ordered_alph):
+                    transitions[(letter, word2[minlen + index])][layer_start + j] = next_layer_start + j * len(alph) + k
+            layer_start = next_layer_start
+            next_layer_start += len(alph) ** (index + 1)
+        for i, oldest_letter in enumerate(ordered_alph):
+            for j in range(len(alph) ** (diff - 1)):
+                for k, new_letter in enumerate(ordered_alph):
+                    transitions[(new_letter, oldest_letter)][layer_start + i * len(alph) ** (diff - 1) + j] = layer_start + j * len(alph) + k
+        for index in range(diff):
+            for j, oldest_letter in enumerate(ordered_alph):
+                for k in range(len(alph) ** (diff - 1 - index)):
+                    transitions[(None, oldest_letter)][layer_start + j * len(alph) ** (diff - 1 - index) + k] = next_layer_start + k
+            layer_start = next_layer_start
+            next_layer_start += len(alph) ** (diff - 1 - index)
+    return BFS(FSA(states, accepts, squared_alph, transitions))
