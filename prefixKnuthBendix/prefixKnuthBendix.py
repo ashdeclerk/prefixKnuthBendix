@@ -153,8 +153,6 @@ def clear_caches():
     projection_cache = {}
     return None
 
-
-
 class AutostackableStructure:
 
     def __init__(self, is_convergent, rules, int_pairs, ext_pairs, pre_pairs, unresolved):
@@ -195,31 +193,126 @@ class AutostackableStructure:
                 out += f"{pair}\n"
         return out
         
-
-
 class Group:
 
     def __init__(self, generators, relators):
         self.generators = generators
         self.relators = relators
 
+class Rule:
 
-def check_int_pairs(int_pairs, ext_pairs, pre_pairs, unresolved, alphabet, rules):
+    def __init__(self, left, right, prefixes):
+        self.left = left
+        self.right = right
+        self.prefixes = prefixes
+    
+    def __repr__(self):
+        return f"Rule({self.left}, {self.right}, {self.prefixes})"
+    
+    def __str__(self):
+        return f"{self.left} => {self.right} after {self.prefixes}"
+
+class Equation:
+
+    def __init__(self, left, right, prefixes):
+        self.left = left
+        self.right = right
+        self.prefixes = prefixes
+    
+    def __repr__(self):
+        return f"Equation({self.left}, {self.right}, {self.prefixes})"
+    
+    def __str__(self):
+        return f"{self.left} = {self.right} after {self.prefixes}"
+
+    def reduce(self, rule):
+        # Reduce either left or right using rule
+        # Returns None if neither can be reduced using rule
+        for index in range(len(self.left) - len(rule.left) + 1):
+            if self.left[index:index + len(rule.left)] == rule.left:
+                rewritable_prefixes = intersection(quotient(rule.prefixes, single_word_FSA(self.prefixes.alphabet, self.left[:index])), self.prefixes)
+                new_left = self.left[:index] + rule.right + self.left[index + len(rule.left):]
+                if len(rewritable_prefixes.accepts) > 0:
+                    self.prefixes = intersection(self.prefixes, complement(rewritable_prefixes))
+                    if new_left != self.right:
+                        return Equation(new_left, self.right, rewritable_prefixes)
+        for index in range(len(self.right) - len(rule.left) + 1):
+            if self.right[index:index + len(rule.left)] == rule.left:
+                rewritable_prefixes = intersection(quotient(rule.prefixes, single_word_FSA(self.prefixes.alphabet, self.right[:index])), self.prefixes)
+                new_right = self.right[:index] + rule.right + self.right[index + len(rule.left):]
+                if len(rewritable_prefixes.accepts) > 0:
+                    self.prefixes = intersection(self.prefixes, complement(rewritable_prefixes))
+                    if self.left != new_right:
+                        return Equation(self.left, new_right, rewritable_prefixes)
+        return None
+
+    def prefix_reduce(self, rule):
+        # Reduce prefixes using rule
+        # We have to do this with annoying synchronous FSA stuff. Sorry.
+        # This returns a bool, just so we can track "did something get reduced".
+        # I'm not sure how helpful that is, but there might be situations where
+        # somebody wants to use that as a "we're making progress" indicator.
+        L_cross_A_star = product(self.prefixes, FSA.all_FSA(self.prefixes.alphabet))
+        P_squared_cap_diag = intersection(product(rule.prefixes, rule.prefixes), diagonal(self.prefixes.alphabet))
+        words_cat_diag = FSA.singletons_diagonal_concatenate(rule.left, rule.right, self.prefixes.alphabet)
+        synch = intersection(L_cross_A_star, concatenation(P_squared_cap_diag, words_cat_diag))
+        rewritten_words = complement(projection(synch, [0]))
+        if len(rewritten_words.accepts) > 0:
+            # We rewrote something!
+            new_prefixes = intersection(union(self.prefixes, projection(synch, [1])),
+                                        complement(projection(synch, [0])))
+            self.prefixes = new_prefixes
+            return True
+        return False
+
+    def boundary_reduce(self, rule):
+        # Reduce at the boundary between prefixes and either left or right
+        # This is slightly dangerous, because it ends up replacing equations by 
+        # more complex equations in some situations. I recommend using this as 
+        # a last resort "nothing else is getting us anywhere" option.
+        for index in range(1, min(len(rule.left) - 1, len(self.left))):
+            if self.left[:index] == rule.left[-index:]:
+                w1 = rule.left[:-index]
+                w3 = self.left[index:]
+                rewritten_prefixes = intersection(rule.prefixes, quotient(self.prefixes, single_word_FSA(self.prefixes.alphabet, w1)))
+                if len(rewritten_prefixes.accepts) > 0:
+                    self.prefixes = intersection(self.prefixes, complement(concatenation(rule.prefixes, single_word_FSA(self.prefixes.alphabet, w1))))
+                    return Equation(rule.right + w3, w1 + self.right, rewritten_prefixes)
+        return None
+
+    def orient(self, order):
+        # Orient where possible using order
+        # Returns a pair of rules. You'll need to do some post-processing
+        # in case self.prefixes or either set of rule prefixes is empty.
+        (left_better, right_better, incomp) = order(self.left, self.right, self.prefixes)
+        self.prefixes = incomp
+        return (Rule(self.left, self.right, right_better), Rule(self.right, self.left, left_better))
+
+class RewritingChain:
+
+    def __init__(self, words):
+        self.words = words
+    
+    def __repr__(self):
+        return f"RewritingChain({self.words})"
+    
+    def __str__(self):
+        return f"{" => ".join(str(word) for word in self.words)}"
+
+
+def check_int_pairs(int_pairs, unresolved, alphabet, rules):
+    logger.log(11, f"Rules are {rules}")
     while len(int_pairs) > 0:
         pair = int_pairs.pop()
         pair[0] = rules[pair[0]]
         pair[1] = rules[pair[1]]
         logger.log(check_specific_pair, f"Checking for interior critical pairs between {pair[0]} and {pair[1]}")
-        for index in range(0, len(pair[1][1]) - len(pair[0][1]) + 1):
-            if pair[0][1] == pair[1][1][index: index + len(pair[0][1])]:
-                word1 = copy.copy(pair[1][2])
-                word2 = copy.copy(pair[1][1])
-                word2[index:index + len(pair[0][1])] = pair[0][2]
-                prefixes = copy.deepcopy(pair[1][0])
-                prefixes = concatenation(prefixes, single_word_FSA(alphabet, pair[1][1][0:index]))
-                prefixes = intersection(prefixes, pair[0][0])
-                prefixes = quotient(prefixes, single_word_FSA(alphabet, pair[1][1][0:index]))
-                prefixes = BFS(prefixes)
+        for index in range(0, len(pair[1].left) - len(pair[0].left) + 1):
+            if pair[0].left == pair[1].left[index: index + len(pair[0].left)]:
+                word1 = copy.copy(pair[1].right)
+                word2 = copy.copy(pair[1].left)
+                word2[index:index + len(pair[0].left)] = pair[0].right
+                prefixes = intersection(pair[1].prefixes, quotient(pair[0].prefixes, single_word_FSA(alphabet, pair[1].left[0:index])))
                 while len(word1) > 0 and len(word2) > 0 and word1[-1] == word2[-1]:
                     del word1[-1]
                     del word2[-1]
@@ -227,49 +320,60 @@ def check_int_pairs(int_pairs, ext_pairs, pre_pairs, unresolved, alphabet, rules
                 while len(word1) > 0 and len(word2) > 0 and word1[0] == word2[0]:
                     p.append(word1.pop(0))
                     del word2[0]
-                rawPrefixes = copy.deepcopy(prefixes)
                 if len(p) > 0:
                     prefixes = concatenation(prefixes, single_word_FSA(prefixes.alphabet, p))
                 if len(prefixes.accepts) > 0 and word1 != word2:
-                    logger.log(add_equation, f"Adding equation {word1} = {word2} after {prefixes}")
-                    unresolved.append([prefixes, word1, word2])
-                deleted_rule_indices = []
-                for jndex in range(0, len(rules)):
-                    if rules[jndex][1] == pair[1][1]:
-                        if rules[jndex][2] == pair[1][2]:
-                            rules[jndex][0] = BFS(intersection(rules[jndex][0], complement(rawPrefixes)))
-                            if len(rules[jndex][0].accepts) == 0:
-                                deleted_rule_indices.append(jndex)
-                while len(deleted_rule_indices) > 0:
-                    jndex = deleted_rule_indices.pop(-1)
-                    logger.log(remove_rule, f"Removing redundant rule {rules[jndex]}")
-                    del rules[jndex]
-                    for k in list(range(len(int_pairs) - 1, -1, -1)):
-                        if int_pairs[k][0] == jndex or int_pairs[k][1] == jndex:
-                            del int_pairs[k]
-                        else:
-                            if int_pairs[k][0] > jndex:
-                                int_pairs[k][0] -= 1
-                            if int_pairs[k][1] > jndex:
-                                int_pairs[k][1] -= 1
-                    for k in list(range(len(ext_pairs) - 1, -1, -1)):
-                        if ext_pairs[k][0] == jndex or ext_pairs[k][1] == jndex:
-                            del ext_pairs[k]
-                        else:
-                            if ext_pairs[k][0] > jndex:
-                                ext_pairs[k][0] -= 1
-                            if ext_pairs[k][1] > jndex:
-                                ext_pairs[k][1] -= 1
-                    for k in list(range(len(pre_pairs) - 1, -1, -1)):
-                        if pre_pairs[k][0] == jndex or pre_pairs[k][1] == jndex:
-                            del pre_pairs[k]
-                        else:
-                            if pre_pairs[k][0] > jndex:
-                                pre_pairs[k][0] -= 1
-                            if pre_pairs[k][1] > jndex:
-                                pre_pairs[k][1] -= 1
-                
-                
+                    new_equation = Equation(word1, word2, prefixes)
+                    logger.log(add_equation, f"Adding equation {new_equation}")
+                    unresolved.append(new_equation)
+                    # We need to remove redundant portions of rules. If we don't,
+                    # then there seems to be an issue where equations don't fully
+                    # reduce for some reason. I've no clue how that's happening,
+                    # because it shouldn't, but this also makes things a bit more
+                    # efficient because we have fewer rules to fuss with. 
+                    logger.log(remove_rule, f"Removing redundant portion of {pair[1]}")
+                    pair[1].prefixes = intersection(pair[1].prefixes, complement(prefixes))
+    return True 
+
+def clean_rules(rules, int_pairs, ext_pairs, pre_pairs):
+    removable_rules = []
+    for index, rule in enumerate(rules):
+        if len(rule.prefixes.accepts) == 0:
+            removable_rules.append(index)
+    while len(removable_rules) > 0:
+        index = removable_rules.pop()
+        rules.pop(index)
+        removable_pairs = []
+        for index, pair in enumerate(int_pairs):
+            if pair[0] == index or pair[1] == index:
+                removable_pairs.append(index)
+            if pair[0] > index:
+                pair[0] -= 1
+            if pair[1] > index:
+                pair[1] -= 1
+        while len(removable_pairs) > 0:
+            int_pairs.pop(removable_pairs.pop())
+        removable_pairs = []
+        for index, pair in enumerate(ext_pairs):
+            if pair[0] == index or pair[1] == index:
+                removable_pairs.append(index)
+            if pair[0] > index:
+                pair[0] -= 1
+            if pair[1] > index:
+                pair[1] -= 1
+        while len(removable_pairs) > 0:
+            ext_pairs.pop(removable_pairs.pop())
+        removable_pairs = []
+        for index, pair in enumerate(pre_pairs):
+            if pair[0] == index or pair[1] == index:
+                removable_pairs.append(index)
+            if pair[0] > index:
+                pair[0] -= 1
+            if pair[1] > index:
+                pair[1] -= 1
+        while len(removable_pairs) > 0:
+            pre_pairs.pop(removable_pairs.pop())
+    return True
 
 def check_ext_pairs(ext_pairs, unresolved, alphabet, rules):
     while len(ext_pairs) > 0:
@@ -278,14 +382,14 @@ def check_ext_pairs(ext_pairs, unresolved, alphabet, rules):
         pair[1] = rules[pair[1]]
         logger.log(check_specific_pair, f"Checking for exterior critical pairs between {pair[0]} and {pair[1]}")
         # We're looking for a proper suffix of l1 to be a prefix of l2
-        for index in range(1, len(pair[0][1])):
-            if pair[0][1][index:] == pair[1][1][:len(pair[0][1]) - index]:
-                word1 = pair[0][1][:index] + pair[1][2]
-                word2 = pair[0][2] + pair[1][1][len(pair[0][1]) - index:]
+        for index in range(1, len(pair[0].left)):
+            if pair[0].left[index:] == pair[1].left[:len(pair[0].left) - index]:
+                word1 = pair[0].left[:index] + pair[1].right
+                word2 = pair[0].right + pair[1].left[len(pair[0].left) - index:]
                 # Prefix language is (L2 / pair[0][1][:index]) \cap L1
-                prefixes = copy.deepcopy(pair[1][0])
-                prefixes = quotient(prefixes, single_word_FSA(alphabet, pair[0][1][:index]))
-                prefixes = intersection(prefixes, pair[0][0])
+                prefixes = copy.deepcopy(pair[1].prefixes)
+                prefixes = quotient(prefixes, single_word_FSA(alphabet, pair[0].left[:index]))
+                prefixes = intersection(prefixes, pair[0].prefixes)
                 prefixes = BFS(prefixes)
                 if word1 != word2 and len(prefixes.accepts) > 0:
                     p = []
@@ -296,91 +400,8 @@ def check_ext_pairs(ext_pairs, unresolved, alphabet, rules):
                         prefixes = concatenation(prefixes, single_word_FSA(prefixes.alphabet, p))
                     if len(prefixes.accepts) > 0 and word1 != word2:
                         logger.log(add_equation, f"Adding equation {word1} = {word2} after {prefixes}")
-                        unresolved.append([prefixes, word1, word2])
-
-def concat_prod_words_diag(word1, word2, alphabet):
-    # This is necessary to prevent padding issues in a couple of places.
-    # In particular, taking the product of word1 and word2 and then 
-    # concatenating the diagonal on the left leads to padding symbols 
-    # in the middle of the language if you use the basic method for 
-    # concatenation.
-    # That's *bad*, and ~~as far as I know there isn't an efficient way~~ 
-    # it is impossible to translate from asynchronous to synchronous.
-    # Hence this function, which builds the FSA for the synchronous version.
-    alphabet_copy = list(copy.deepcopy(alphabet))
-    alph = []
-    for let1 in alphabet:
-        for let2 in alphabet:
-            alph.append((let1, let2))
-        alph.append((let1, None))
-        alph.append((None, let1))
-    transitions = {}
-    forced_both_state_count = min(len(word1), len(word2))
-    forced_one_move_count = abs(len(word1) - len(word2))
-    alph_size = len(alphabet)
-    memory_state_count = alph_size * ((1 - alph_size ** forced_one_move_count) // (1 - alph_size))
-    states = forced_both_state_count + 2 * memory_state_count + 3 - alph_size ** forced_one_move_count
-    accepts = [states - 2]
-    for let in alph:
-        transitions[let] = [states - 1] * states
-    for i in range(forced_both_state_count):
-        transitions[(word1[i], word2[i])][i] = i + 1
-    if len(word1) < len(word2):
-        for i in range(len(word2) - len(word1)):
-            forced_letter = word2[i + len(word1)]
-            offset = forced_both_state_count + (1 - alph_size ** i) // (1 - alph_size)
-            next_offset = offset + alph_size ** i
-            for j in range(offset, next_offset):
-                k = (j - offset) * alph_size + next_offset
-                for location, letter in enumerate(alphabet_copy):
-                    transitions[(letter, forced_letter)][j] = k + location
-        for j in range(next_offset, next_offset + alph_size ** forced_one_move_count):
-            k = (j - next_offset)
-            oldest_memorized_index = k // (alph_size ** (forced_one_move_count - 1))
-            oldest_memorized_letter = alphabet_copy[oldest_memorized_index]
-            k -= oldest_memorized_index * (alph_size ** (forced_one_move_count - 1))
-            k *= alph_size
-            for location, letter in enumerate(alphabet_copy):
-                transitions[(letter, oldest_memorized_letter)][j] = location + k + next_offset
-        for i in range(len(word2) - len(word1)):
-            offset = next_offset
-            next_offset = offset + alph_size ** (forced_one_move_count - i)
-            for j in range(offset, next_offset):
-                k = j - offset
-                oldest_memorized_index = k // (alph_size ** (forced_one_move_count - i - 1))
-                oldest_memorized_letter = alphabet_copy[oldest_memorized_index]
-                k -= oldest_memorized_index * (alph_size ** (forced_one_move_count - i - 1))
-                transitions[(None, oldest_memorized_letter)][j] = next_offset + k
-    elif len(word1) > len(word2):
-        for i in range(len(word1) - len(word2)):
-            forced_letter = word1[i + len(word2)]
-            offset = forced_both_state_count + (1 - alph_size ** i) // (1 - alph_size)
-            next_offset = offset + alph_size ** i
-            for j in range(offset, next_offset):
-                k = (j - offset) * alph_size + next_offset
-                for location, letter in enumerate(alphabet_copy):
-                    transitions[(forced_letter, letter)][j] = k + location
-        for j in range(next_offset, next_offset + alph_size ** forced_one_move_count):
-            k = (j - next_offset)
-            oldest_memorized_index = k // (alph_size ** (forced_one_move_count - 1))
-            oldest_memorized_letter = alphabet_copy[oldest_memorized_index]
-            k -= oldest_memorized_index * (alph_size ** (forced_one_move_count - 1))
-            k *= alph_size
-            for location, letter in enumerate(alphabet_copy):
-                transitions[(oldest_memorized_letter, letter)][j] = location + k + next_offset
-        for i in range(len(word1) - len(word2)):
-            offset = next_offset
-            next_offset = offset + alph_size ** (forced_one_move_count - i)
-            for j in range(offset, next_offset):
-                k = j - offset
-                oldest_memorized_index = k // (alph_size ** (forced_one_move_count - i - 1))
-                oldest_memorized_letter = alphabet_copy[oldest_memorized_index]
-                k -= oldest_memorized_index * (alph_size ** (forced_one_move_count - i - 1))
-                transitions[(oldest_memorized_letter, None)][j] = next_offset + k
-    else:
-        for letter in alphabet_copy:
-            transitions[(letter, letter)][forced_both_state_count] = forced_both_state_count
-    return FSA.FSA(states, accepts, alph, transitions)
+                        unresolved.append(Equation(word1, word2, prefixes))
+    return True
 
 def check_pre_pairs(pre_pairs, unresolved, alphabet, everything, rules):
     while len(pre_pairs) > 0:
@@ -388,17 +409,17 @@ def check_pre_pairs(pre_pairs, unresolved, alphabet, everything, rules):
         pair[0] = rules[pair[0]]
         pair[1] = rules[pair[1]]
         logger.log(check_specific_pair, f"Checking for prefix critical pairs between {pair[0]} and {pair[1]}")
-        prefixes = copy.deepcopy(pair[0][0])
+        prefixes = copy.deepcopy(pair[0].prefixes)
         prefixes = product(prefixes, prefixes)
         prefixes = intersection(prefixes, diagonal(alphabet))
-        prefixes = concatenation(prefixes, concat_prod_words_diag(pair[0][1], pair[0][2], alphabet))
+        prefixes = concatenation(prefixes, FSA.singletons_diagonal_concatenate(pair[0].left, pair[0].right, alphabet))
         # The previous line was a nightmare. There was a bug that lasted for 
         # about two years because of that step. Anyway, bug fixed!
-        prefixes = intersection(prefixes, product(pair[1][0], complement(pair[1][0])))
+        prefixes = intersection(prefixes, product(pair[1].prefixes, complement(pair[1].prefixes)))
         prefixes = projection(prefixes, [1])
         if len(prefixes.accepts) > 0:
-            word1 = copy.copy(pair[1][1])
-            word2 = copy.copy(pair[1][2])
+            word1 = copy.copy(pair[1].left)
+            word2 = copy.copy(pair[1].right)
             p = []
             while len(word1) > 0 and len(word2) > 0 and word1[0] == word2[0]:
                 p.append(word1.pop(0))
@@ -407,240 +428,99 @@ def check_pre_pairs(pre_pairs, unresolved, alphabet, everything, rules):
                 prefixes = concatenation(prefixes, single_word_FSA(prefixes.alphabet, p))
             if len(prefixes.accepts) > 0 and word1 != word2:
                 logger.log(add_equation, f"Adding equation {word1} = {word2} after {prefixes}")
-                unresolved.append([prefixes, word1, word2])
-
-def find_descendents(equation, rules):
-    irreducibles = []
-    checked = []
-    toBeChecked = [[equation[0], equation[1]], [equation[0], equation[2]]]
-    while len(toBeChecked) > 0:
-        [lang, word] = toBeChecked.pop()
-        logger.log(logging.DEBUG, f"descending {word} after {lang}")
-        if len(lang.accepts) == 0:
-            continue
-        checked.append([lang, word])
-        for rule in rules:
-            for index in range(0, len(word) - len(rule[1]) + 1):
-                if word[index: index + len(rule[1])] == rule[1]:
-                    prefixes = intersection(concatenation(lang, single_word_FSA(lang.alphabet, word[:index])), rule[0])
-                    prefixes = quotient(prefixes, single_word_FSA(lang.alphabet, word[:index]))
-                    lang = intersection(lang, complement(prefixes))
-                    newWord = word[:index] + rule[2] + word[index + len(rule[1]):]
-                    for pair in toBeChecked:
-                        if pair[1] == newWord:
-                            prefixes = intersection(prefixes, pair[0])
-                    for pair in checked:
-                        if pair[1] == newWord:
-                            prefixes = intersection(prefixes, pair[0])
-                    if len(prefixes.accepts) > 0:
-                        toBeChecked.append([prefixes, newWord])
-        if len(lang.accepts) > 0:
-            irreducibles.append([lang, word])
-    return irreducibles
+                unresolved.append(Equation(word1, word2, prefixes))
+    return True
 
 def resolve_equalities(unresolved, rules, alph, ordering, int_pairs, ext_pairs, pre_pairs):
-    new_unresolved = []
+    fully_reduced = []
     while len(unresolved) > 0:
-        equation = unresolved.pop()
-        logger.log(handle_specific_equation, f"Working on equation: {equation[1]} = {equation[2]} after {equation[0]}")
-        irreducibles = find_descendents(equation, rules)
-        logger.log(handle_specific_equation, f"Orienting {len(irreducibles)} irreducibles")
-        while len(irreducibles) > 0:
-            [lang, word] = irreducibles.pop()
-            for index in range(0, len(irreducibles)):
-                lang1 = copy.deepcopy(lang)
-                word1 = copy.deepcopy(word)
-                [lang2, word2] = copy.deepcopy(irreducibles[index])
-                logger.log(orient_specific_pair, f"Orienting {word} after {lang} against {word2} after {lang2}")
-                if word1 == word2:
-                    continue
-                inter = intersection(lang1, lang2)
-                if len(inter.accepts) == 0:
-                    continue
-                p = []
-                while len(word1) > 0 and len(word2) > 0 and word1[0] == word2[0]:
-                    p.append(word1.pop(0))
-                    del word2[0]
-                if len(p) > 0:
-                    inter = concatenation(inter, single_word_FSA(inter.alphabet, p))
-                (left, right, incomp) = ordering(word1, word2, inter)
-                if len(incomp.accepts) > 0 and word1 != word2:
-                    logger.log(equation_did_not_resolve, f"Returning unresolved equation: {word1} = {word2} after {incomp}")
-                    new_unresolved.append([incomp, word1, word2])
-                for rule in rules:
-                    if rule[1] == word1:
-                        if rule[2] == word2:
-                            right = intersection(right, complement(rule[0]))
-                    if rule[1] == word2:
-                        if rule[2] == word1:
-                            left = intersection(left, complement(rule[0]))
-                if len(right.accepts) > 0:
-                    for ruleIndex in range(len(rules)):
-                        if len(word1) > len(rules[ruleIndex][1]):
-                            int_pairs.append([ruleIndex, len(rules)])
-                        elif len(word1) < len(rules[ruleIndex][1]):
-                            int_pairs.append([len(rules), ruleIndex])
-                        ext_pairs.append([ruleIndex, len(rules)])
-                        ext_pairs.append([len(rules), ruleIndex])
-                        pre_pairs.append([ruleIndex, len(rules)])
-                        pre_pairs.append([len(rules), ruleIndex])
-                    ext_pairs.append([len(rules), len(rules)])
-                    pre_pairs.append([len(rules), len(rules)])
-                    logger.log(add_rule, f"Adding rule {word1} -> {word2} after {right}")
-                    rules.append([right, word1, word2])
-                if len(left.accepts) > 0:
-                    for ruleIndex in range(len(rules)):
-                        if len(word2) > len(rules[ruleIndex][1]):
-                            int_pairs.append([ruleIndex, len(rules)])
-                        elif len(word2) < len(rules[ruleIndex][1]):
-                            int_pairs.append([len(rules), ruleIndex])
-                        ext_pairs.append([ruleIndex, len(rules)])
-                        ext_pairs.append([len(rules), ruleIndex])
-                        pre_pairs.append([ruleIndex, len(rules)])
-                        pre_pairs.append([len(rules), ruleIndex])
-                    ext_pairs.append([len(rules), len(rules)])
-                    pre_pairs.append([len(rules), len(rules)])
-                    logger.log(add_rule, f"Adding rule {word2} -> {word1} after {left}")
-                    rules.append([left, word2, word1])
-    return new_unresolved
-
-def clean_equations(rules, unresolved, alph):
-    for equation in unresolved:
-        logger.log(logging.DEBUG, f"handling equation {equation[1]} = {equation[2]} after {equation[0]}")
+        current_equation = unresolved.pop()
+        reduced = False
         for rule in rules:
-            logger.log(logging.DEBUG, f"handling rule {rule[1]} -> {rule[2]} after {rule[0]}")
-            index = 0
-            while index < len(equation[1]) - len(rule[1]) + 1:
-                if rule[1] == equation[1][index: index + len(rule[1])]:
-                    p = copy.copy(equation[1][0:index])
-                    redlang = intersection(equation[0], quotient(rule[0], single_word_FSA(alph, p)))
-                    if len(redlang.accepts) > 0:
-                        s = copy.copy(equation[1][index + len(rule[1]):])
-                        equation[0] = intersection(equation[0], complement(redlang))
-                        logger.log(logging.DEBUG, f"replacing lang with {equation[0]}")
-                        if p + rule[2] + s != equation[2]:
-                            unresolved.append([redlang, p + rule[2] + s, equation[2]])
-                            logger.log(logging.DEBUG, f"adding new equation {redlang, p + rule[2] + s, equation[2]}")
-                            index = 0
-                    else:
-                        index += 1
-                else:
-                    index += 1
-            index = 0
-            while index < len(equation[2]) - len(rule[1]) + 1:
-                if rule[1] == equation[2][index: index + len(rule[1])]:
-                    p = copy.copy(equation[2][0:index])
-                    redlang = intersection(equation[0], quotient(rule[0], single_word_FSA(alph, p)))
-                    if len(redlang.accepts) > 0:
-                        s = copy.copy(equation[2][index + len(rule[1]):])
-                        equation[0] = intersection(equation[0], complement(redlang))
-                        logger.log(logging.DEBUG, f"replacing lang with {equation[0]}")
-                        if equation[1] != p + rule[2] + s:
-                            unresolved.append([redlang, equation[1], p + rule[2] + s])
-                            logger.log(logging.DEBUG, f"adding new equation {redlang, equation[1], p + rule[2] + s}")
-                            index = 0
-                    else:
-                        index += 1
-                else:
-                    index += 1
+            old_equation = copy.deepcopy(current_equation)
+            possible_new_equation = current_equation.reduce(rule)
+            if possible_new_equation:
+                unresolved.append(possible_new_equation)
+                logger.log(handle_specific_equation, f"Reduced {old_equation} to {possible_new_equation} using {rule}")
+                reduced = True
+        if reduced and len(current_equation.prefixes.accepts) > 0:
+            # We might need to go through this equation again because it can be
+            # reduced by a rule in multiple spots. Each pass of `reduce` only
+            # reduces in one spot. 
+            unresolved.append(current_equation)
+        elif len(current_equation.prefixes.accepts) > 0:
+            fully_reduced.append(current_equation)
+        else:
+            logger.log(handle_specific_equation, f"Forgetting empty equation {current_equation}")
+    while len(fully_reduced) > 0:
+        current_equation = fully_reduced.pop()
+        logger.log(handle_specific_equation, f"Orienting equation: {current_equation}")
+        possible_new_rules = current_equation.orient(ordering)
+        if len(current_equation.prefixes.accepts) > 0:
+            logger.log(equation_did_not_resolve, f"Returning unoriented equation {current_equation}")
+            unresolved.append(current_equation)
+        if len(possible_new_rules[0].prefixes.accepts) > 0:
+            new_rule = possible_new_rules[0]
+            logger.log(add_rule, f"Adding rule {new_rule}")
+            for index, old_rule in enumerate(rules):
+                if len(new_rule.left) < len(old_rule.left):
+                    int_pairs.append([len(rules), index])
+                elif len(new_rule.left) > len(old_rule.left):
+                    int_pairs.append([index, len(rules)])
+                ext_pairs.append([index, len(rules)])
+                ext_pairs.append([len(rules), index])
+                pre_pairs.append([index, len(rules)])
+                pre_pairs.append([len(rules), index])
+            rules.append(new_rule)
+        if len(possible_new_rules[1].prefixes.accepts) > 0:
+            new_rule = possible_new_rules[1]
+            logger.log(add_rule, f"Adding rule {new_rule}")
+            for index, old_rule in enumerate(rules):
+                if len(new_rule.left) < len(old_rule.left):
+                    int_pairs.append([len(rules), index])
+                elif len(new_rule.left) > len(old_rule.left):
+                    int_pairs.append([index, len(rules)])
+                ext_pairs.append([index, len(rules)])
+                ext_pairs.append([len(rules), index])
+                pre_pairs.append([index, len(rules)])
+                pre_pairs.append([len(rules), index])
+            rules.append(new_rule)
+    return True
+
+def combine_equations(unresolved):
     for i in range(len(unresolved) - 1):
         for j in range(i + 1, len(unresolved)):
-            if unresolved[i][1] == unresolved[j][1] and unresolved[i][2] == unresolved[j][2]:
-                unresolved[i][0] = FSA.union(unresolved[i][0], unresolved[j][0])
-                unresolved[j][0].accepts = set()
-            elif unresolved[i][1] == unresolved[j][2] and unresolved[i][2] == unresolved[j][1]:
-                unresolved[i][0] = FSA.union(unresolved[i][0], unresolved[j][0])
-                unresolved[j][0].accepts = set()
+            if unresolved[i].left == unresolved[j].left and unresolved[i].right == unresolved[j].right:
+                unresolved[i].prefixes = FSA.union(unresolved[i].prefixes, unresolved[j].prefixes)
+                unresolved[j].prefixes.accepts = set()
+            elif unresolved[i].left == unresolved[j].right and unresolved[i].right == unresolved[j].left:
+                unresolved[i].prefixes = FSA.union(unresolved[i].prefixes, unresolved[j].prefixes)
+                unresolved[j].prefixes.accepts = set()
     for i in range(len(unresolved) - 1, -1, -1):
-        if len(unresolved[i][0].accepts) == 0 or unresolved[i][1] == unresolved[i][2]:
-            logger.log(logging.DEBUG, f"pruning {unresolved[i]}")
+        if len(unresolved[i].prefixes.accepts) == 0:
             del unresolved[i]
+    return True
 
-def prune_prefixes(unresolved, rules, alph, everything):
-    new_unresolved = []
+def prune_prefixes(unresolved, rules):
+    fully_reduced = []
     while len(unresolved) > 0:
         equation = unresolved.pop()
-        logger.log(handle_specific_equation, f"Rewriting prefixes in equation {equation[1]} = {equation[2]} after {equation[0]}")
+        logger.log(handle_specific_equation, f"Rewriting prefixes in equation {equation}")
         for rule in rules:
-            L1byAll = product(equation[0], everything)
-            L2byL2 = product(rule[0], rule[0])
-            L2byL2capDStar = intersection(L2byL2, diagonal(alph))
-            L2byL2capDStarDot = concatenation(L2byL2capDStar, concatenation(product(single_word_FSA(alph, rule[1]), single_word_FSA(alph, rule[2])), diagonal(alph)))
-            L3 = intersection(L1byAll, L2byL2capDStarDot)
-            equation[0] = intersection(equation[0], complement(projection(L3, [0])))
-            equation[0] = union(equation[0], projection(L3, [1]))
-            if len(equation[0].accepts) == 0:
-                break
-        if len(equation[0].accepts) > 0 and equation[1] != equation[2]:
-            logger.log(equation_did_not_resolve, f"Returning equation {equation[1]} = {equation[2]} after {equation[0]}")
-            new_unresolved.append(equation)
-    return new_unresolved
-
-def reduce_prefixes(unresolved, rules, alph):
-    # This rewrites at the border between prefixes and words, i.e. for L: u = v
-    # if there's a rule L_2: l -> r where the end of l is the start of u, 
-    # and the start of l can be the end of something in L, then we do that
-    # rewriting. It's... somewhat dangerous. If you tell return the new
-    # equation to this, it's very easy to loop infinitely here. 
-    new_unresolved = []
-    while len(unresolved) > 0:
-        equality = unresolved.pop()
-        logger.log(handle_specific_equation, f"Rewriting with rules that overlap prefix and word in equation {equality[1]} = {equality[2]} after {equality[0]}")
-        for rule in rules:
-            for index in range(0, len(rule[1])):
-                if rule[1][index:] == equality[1][:len(rule) - index]: # overlap with left side of equality
-                    # p = rule[1][:index], o = rule[1][index:], s = equality[1][:len(rule) - index]
-                    prefixes = intersection(rule[0], quotient(equality[0], single_word_FSA(alph, rule[1][:index])))
-                    if len(prefixes.accepts) > 0:
-                        word1 = rule[2] + equality[1][len(rule) - index:]
-                        word2 = rule[1][:index] + equality[2]
-                        while len(word1) > 0 and len(word2) > 0 and word1[-1] == word2[-1]:
-                            del word1[-1]
-                            del word2[-1]
-                        p = []
-                        while len(word1) > 0 and len(word2) > 0 and word1[0] == word2[0]:
-                            p.append(word1.pop(0))
-                            del word2[0]
-                        if len(p) > 0:
-                            prefixes = concatenation(prefixes, single_word_FSA(prefixes.alphabet, p))
-                        if len(prefixes.accepts) > 0 and word1 != word2:
-                            logger.log(equation_did_not_resolve, f"Adding equality {word1} = {word2} after {prefixes}")
-                            new_unresolved.append([prefixes, word1, word2])
-                        equality[0] = intersection(equality[0], complement(prefixes))
-                        if len(equality[0].accepts) == 0:
-                            break
-                if rule[1][index:] == equality[2][:len(rule) - index]: # overlap with right side of equality
-                    prefixes = intersection(rule[0], quotient(equality[0], single_word_FSA(alph, rule[1][:index])))
-                    if len(prefixes.accepts) > 0:
-                        word1 = rule[2] + equality[2][len(rule) - index:]
-                        word2 = rule[1][:index] + equality[1]
-                        while len(word1) > 0 and len(word2) > 0 and word1[-1] == word2[-1]:
-                            del word1[-1]
-                            del word2[-1]
-                        p = []
-                        while len(word1) > 0 and len(word2) > 0 and word1[0] == word2[0]:
-                            p.append(word1.pop(0))
-                            del word2[0]
-                        if len(p) > 0:
-                            prefixes = concatenation(prefixes, single_word_FSA(prefixes.alphabet, p))
-                        if len(prefixes.accepts) > 0 and word1 != word2:
-                            logger.log(equation_did_not_resolve, f"Adding equality {word1} = {word2} after {prefixes}")
-                            new_unresolved.append([prefixes, word1, word2])
-                        equality[0] = intersection(equality[0], complement(prefixes))
-                        if len(equality[0].accepts) == 0:
-                            break
-        if len(equality[0].accepts) > 0 and equality[1] != equality[2]:
-            logger.log(equation_did_not_resolve, f"Returning equality {equality[1]} = {equality[2]} after {equality[0]}")
-            new_unresolved.append(equality)
-    return new_unresolved
-
+            equation.prefix_reduce(rule)
+        if len(equation.prefixes.accepts) > 0 and equation.left != equation.right:
+            logger.log(equation_did_not_resolve, f"Returning equation {equation}")
+            fully_reduced.append(equation)
+    for eq in fully_reduced:
+        unresolved.append(eq)
+    return True
 
 def check_rule_lengths(max_rule_length, unresolved):
     # Checks for any rules that are too long
     for equality in unresolved:
-        if len(equality[1]) > max_rule_length:
+        if len(equality.left) > max_rule_length:
             return True
-        if len(equality[2]) > max_rule_length:
+        if len(equality.right) > max_rule_length:
             return True
 
 def autostackableNormalForms(group):
@@ -653,7 +533,7 @@ def autostackableNormalForms(group):
     nf = FSA.all_FSA(group.generators)
     for rule in group.autostackableStructure.rules:
         # Useful note: If we swap the order in the next line, we have a race condition. Presumably because the computer grabs nf before it can be rewritten.
-        nf = intersection(complement(concatenation(concatenation(rule[0], single_word_FSA(group.generators, rule[1])), ev)), nf)
+        nf = intersection(complement(concatenation(concatenation(rule.prefixes, single_word_FSA(group.generators, rule.left)), ev)), nf)
     return nf
 
 def pKB(group, max_rule_number = 1000, max_rule_length = None, max_time = 600):
@@ -681,16 +561,20 @@ def pKB(group, max_rule_number = 1000, max_rule_length = None, max_time = 600):
         unresolved = []
         is_convergent = False
         for rel in group.relators:
-            unresolved.append([everything, rel[0], rel[1]]) # Rules are of the form [L, l, r], meaning that after any word in L, l goes to r
+            unresolved.append(Equation(rel[0], rel[1], copy.deepcopy(everything)))
     # Initial step complete. Now we loop between the (critpair check/equality resolution) loop and the (check unresolved/prefix reduction) loop.
-    while True: # This type of loop (where we continue forever and break at a certain condition) is apparently called a "loop and a half"; python, unfortunately, lacks a native "until" loop type.
+    while True:
+        # This type of loop (where we continue forever and break at a certain condition)
+        # is apparently called a "loop and a half"; python, unfortunately, lacks 
+        # a native "until" loop type.
         # Check for critical pairs
         # Interior as top priority, just because they are quick to check and eliminate things
         # Exterior as a second priority, i.e. todo if there are no pairs that we haven't check for interior pairs. Harder to check, but not as bad as:
         # Prefix as a bottom priority. THese are *slow* to check, since it's all about constructing FSAs.
         if len(int_pairs) > 0:
             logger.log(major_steps, f"Checking {len(int_pairs)} pairs of rules for interior critical pairs.")
-            check_int_pairs(int_pairs, ext_pairs, pre_pairs, unresolved, group.generators, rules)
+            check_int_pairs(int_pairs, unresolved, group.generators, rules)
+            clean_rules(rules, int_pairs, ext_pairs, pre_pairs)
         elif len(ext_pairs) > 0:
             logger.log(major_steps, f"Checking {len(ext_pairs)} pairs of rules for exterior critical pairs.")
             check_ext_pairs(ext_pairs, unresolved, group.generators, rules)
@@ -699,22 +583,14 @@ def pKB(group, max_rule_number = 1000, max_rule_length = None, max_time = 600):
             check_pre_pairs(pre_pairs, unresolved, group.generators, everything, rules)
         # Equality resolution
         logger.log(periodic_rule_display, f"Rules are {rules}")
-        # I previously had equality resolution before pruning/reducing equations (i.e. here).
+        logger.log(major_steps, f"Resolving {len(unresolved)} equations.")
+        resolve_equalities(unresolved, rules, group.generators, group.ordering, int_pairs, ext_pairs, pre_pairs)
         # We've run the equality resolution; need to now check if unresolved is empty, and do prefix resolution step if not
         # The logic here could almost certainly be made more efficient. I expect that prefix resolution is slow, and doing it less often would likely be preferable.
         # But I'm forcing myself to remember that this is proof of concept, not finished product. Efficiencies can be made later.
         if len(unresolved) > 0:
-            logger.log(major_steps, f"Pruning and reducing {len(unresolved)} unresolved equations.")
-            logger.log(logging.DEBUG, "start clean_equations")
-            clean_equations(rules, unresolved, group.generators)
-            logger.log(logging.DEBUG, "start prune_prefixes")
-            unresolved = prune_prefixes(unresolved, rules, group.generators, everything)
-            # It turns out that reducing prefixes at the boundary of a word is a bad idea, actually.
-            # At least from initial testing. This needs to be treated *carefully*.
-            #logger.log(logging.DEBUG, "start reduce_prefixes")
-            #unresolved = reduce_prefixes(unresolved, rules, group.generators)
-        logger.log(major_steps, f"Resolving {len(unresolved)} equations.")
-        unresolved = resolve_equalities(unresolved, rules, group.generators, group.ordering, int_pairs, ext_pairs, pre_pairs)
+            logger.log(major_steps, f"Pruning prefixes in {len(unresolved)} unresolved equations.")
+            prune_prefixes(unresolved, rules)
         # And now we check if we need to halt.
         if len(unresolved) == 0:
             if len(int_pairs) + len(ext_pairs) + len(pre_pairs) == 0: # i.e., every equality has been resolved, after checking that there are no critical pairs left to check
