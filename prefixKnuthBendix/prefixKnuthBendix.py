@@ -699,7 +699,8 @@ def pKB(group, max_rule_number = 1000, max_rule_length = None, max_time = 600):
             check_pre_pairs(pre_pairs, unresolved, group.generators, everything, rules)
         # Equality resolution
         logger.log(periodic_rule_display, f"Rules are {rules}")
-        # I previously had equality resolution before pruning/reducing equations (i.e. here).
+        logger.log(major_steps, f"Resolving {len(unresolved)} equations.")
+        unresolved = resolve_equalities(unresolved, rules, group.generators, group.ordering, int_pairs, ext_pairs, pre_pairs)
         # We've run the equality resolution; need to now check if unresolved is empty, and do prefix resolution step if not
         # The logic here could almost certainly be made more efficient. I expect that prefix resolution is slow, and doing it less often would likely be preferable.
         # But I'm forcing myself to remember that this is proof of concept, not finished product. Efficiencies can be made later.
@@ -713,8 +714,6 @@ def pKB(group, max_rule_number = 1000, max_rule_length = None, max_time = 600):
             # At least from initial testing. This needs to be treated *carefully*.
             #logger.log(logging.DEBUG, "start reduce_prefixes")
             #unresolved = reduce_prefixes(unresolved, rules, group.generators)
-        logger.log(major_steps, f"Resolving {len(unresolved)} equations.")
-        unresolved = resolve_equalities(unresolved, rules, group.generators, group.ordering, int_pairs, ext_pairs, pre_pairs)
         # And now we check if we need to halt.
         if len(unresolved) == 0:
             if len(int_pairs) + len(ext_pairs) + len(pre_pairs) == 0: # i.e., every equality has been resolved, after checking that there are no critical pairs left to check
