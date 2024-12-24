@@ -562,6 +562,8 @@ def prune_prefixes(unresolved, rules, alph, everything):
         equation = unresolved.pop()
         logger.log(handle_specific_equation, f"Rewriting prefixes in equation {equation[1]} = {equation[2]} after {equation[0]}")
         for rule in rules:
+            if equation[1] == ['b', 'a']:
+                print(f"working with rule {rule}")
             L1byAll = product(equation[0], everything)
             L2byL2 = product(rule[0], rule[0])
             L2byL2capDStar = intersection(L2byL2, diagonal(alph))
@@ -569,8 +571,6 @@ def prune_prefixes(unresolved, rules, alph, everything):
             L3 = intersection(L1byAll, L2byL2capDStarDot)
             equation[0] = intersection(equation[0], complement(projection(L3, [0])))
             equation[0] = union(equation[0], projection(L3, [1]))
-            if len(equation[0].accepts) == 0:
-                break
         if len(equation[0].accepts) > 0 and equation[1] != equation[2]:
             logger.log(equation_did_not_resolve, f"Returning equation {equation[1]} = {equation[2]} after {equation[0]}")
             new_unresolved.append(equation)
@@ -699,9 +699,11 @@ def pKB(group, max_rule_number = 1000, max_rule_length = None, max_time = 600):
             check_pre_pairs(pre_pairs, unresolved, group.generators, everything, rules)
         # Equality resolution
         logger.log(periodic_rule_display, f"Rules are {rules}")
-        logger.log(major_steps, f"Resolving {len(unresolved)} equations.")
-        unresolved = resolve_equalities(unresolved, rules, group.generators, group.ordering, int_pairs, ext_pairs, pre_pairs)
-        # We've run the equality resolution; need to now check if unresolved is empty, and do prefix resolution step if not
+        if group.clean_first:
+            pass
+        else:
+            logger.log(major_steps, f"Resolving {len(unresolved)} equations.")
+            unresolved = resolve_equalities(unresolved, rules, group.generators, group.ordering, int_pairs, ext_pairs, pre_pairs)
         # The logic here could almost certainly be made more efficient. I expect that prefix resolution is slow, and doing it less often would likely be preferable.
         # But I'm forcing myself to remember that this is proof of concept, not finished product. Efficiencies can be made later.
         if len(unresolved) > 0:
@@ -714,6 +716,11 @@ def pKB(group, max_rule_number = 1000, max_rule_length = None, max_time = 600):
             # At least from initial testing. This needs to be treated *carefully*.
             #logger.log(logging.DEBUG, "start reduce_prefixes")
             #unresolved = reduce_prefixes(unresolved, rules, group.generators)
+        if group.clean_first:
+            logger.log(major_steps, f"Resolving {len(unresolved)} equations.")
+            unresolved = resolve_equalities(unresolved, rules, group.generators, group.ordering, int_pairs, ext_pairs, pre_pairs)
+        else:
+            pass
         # And now we check if we need to halt.
         if len(unresolved) == 0:
             if len(int_pairs) + len(ext_pairs) + len(pre_pairs) == 0: # i.e., every equality has been resolved, after checking that there are no critical pairs left to check

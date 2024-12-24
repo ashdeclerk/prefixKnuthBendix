@@ -122,6 +122,7 @@ def ordering(u, v, L):
     return pieces(u, v, L)
 
 BS12.ordering = ordering
+BS12.clean_first = True
 
 pKB(BS12, max_time = 2000, max_rule_length = 100)
 
