@@ -14,9 +14,13 @@ from queue import SimpleQueue
 # This is a basic logging setup that logs absolutely everything.
 logger = logging.getLogger("prefixKnuthBendix")
 # If you want to log less things, you can increase the logging level.
-# 11 or lower logs absolutely everything, 21 or higher logs nothing,
+# 11 logs almost everything, 21 or higher logs nothing,
 # and various levels in between reduce the amount being logged.
 # I recommend keeping this at 11 and parsing the log file later if necessary.
+# 9 logs too much information. In particular, it logs every time an equation
+# gets reduced, with one rule application per log. I don't recommend it unless
+# you're planning to go really deep into the weeds of what's happening. I only
+# added it because I needed to use that information to debug. 
 logger.setLevel(11)
 # You can comment out any keys that you don't want logged to the log file.
 # Again, I recommend not touching this, because more information is generally
@@ -33,7 +37,7 @@ format_keys = {
 }
 # You should change the file name in `make_file_handler` to an appropriate
 # name for your log. I'm using a .jsonl (json lines) file because
-# each line is formatted as a json object. File extensions are just a name, though.
+# each line is formatted as a json object. File extensions are just a name, though. 
 file_handler = pkbLogging.make_file_handler("Cox333.jsonl", level = 11, format_keys = format_keys)
 # You can also adjust the logging levels separately for the file handler
 # and stdout handler. If you want to just see the major steps in stdout but

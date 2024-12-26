@@ -54,7 +54,7 @@ queue_listener.start()
 atexit.register(queue_listener.stop)
 logger.addHandler(queue_handler)
 
-BS12 = Group({'a', 't', 'A', 'T'}, [[['a','A'],[]], [['A', 'a'], []], [['t', 'T'], []], [['T', 't'], []], [['t', 'a', 'T'], ['a', 'a']]])
+BS12 = Group({'a', 't', 'A', 'T'}, [[['a','A'],[]], [['A', 'a'], []], [['t', 'T'], []], [['T', 't'], []], [['t', 'a', 'T'], ['a', 'a']], [['t', 'A', 'T'], ['A', 'A']]])
 alph = {'a', 't', 'A', 'T'}
 
 
@@ -79,10 +79,6 @@ def ordering_a(u, v, L):
             return (nothing, everything, nothing)
         if scores_u[i] < scores_v[i]:
             return (everything, nothing, nothing)
-    if len(u) > len(v):
-        return (nothing, everything, nothing)
-    if len(u) < len(v):
-        return (everything, nothing, nothing)
     return (nothing, nothing, everything)
 def ordering_b(u, v, L):
     scores_u = []
@@ -102,10 +98,6 @@ def ordering_b(u, v, L):
             return (nothing, everything, nothing)
         if scores_u[i] < scores_v[i]:
             return (everything, nothing, nothing)
-    if len(u) > len(v):
-        return (nothing, everything, nothing)
-    if len(u) < len(v):
-        return (everything, nothing, nothing)
     return (nothing, nothing, everything)
 orderings = [ordering_a, ordering_b, ordering_a, ordering_a, ordering_a, ordering_a]
 
@@ -122,6 +114,9 @@ def ordering(u, v, L):
     return pieces(u, v, L)
 
 BS12.ordering = ordering
+# We need to prune prefixes somewhat aggressively in this example. If we don't,
+# then we end up keeping equations that look like a^n = Ta^(2n)t after
+# any word that includes t. 
 BS12.clean_first = True
 
 pKB(BS12, max_time = 2000, max_rule_length = 100)

@@ -23,12 +23,17 @@ class FSA:
         self.transitions = copy.deepcopy(transitions)
 
     def __repr__(self):
+        out = f"FSA({self.states}, {self.accepts}, {self.alphabet}, {self.transitions})"
+        return out
+
+    def __str__(self):
         out = f"Number of states: {self.states}\n"
         out += f"Accepting states: {self.accepts}\n"
         out += f"Alphabet: {self.alphabet}\n"
-        out += "Transitions: \n"
+        out += "Transitions: {\n"
         for letter in self.transitions:
             out += f"\t {letter}: {self.transitions[letter]}\n"
+        out += "}"
         return out
 
     def accepted(self, word):

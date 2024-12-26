@@ -142,6 +142,25 @@ def projection(fsa1, indices):
     projection_cache[frozenfsa1][frozenindices] = fsa2
     return fsa2
 
+sing_diag_cache = {}
+def singletons_diagonal_concatenate(word1, word2, alphabet):
+    frozen_word1 = tuple(word1)
+    frozen_word2 = tuple(word2)
+    frozen_alph = frozenset(alphabet)
+    if frozen_word1 in sing_diag_cache:
+        if frozen_word2 in sing_diag_cache[frozen_word1]:
+            if frozen_alph in sing_diag_cache[frozen_word1][frozen_word2]:
+                return sing_diag_cache[frozen_word1][frozen_word2][frozen_alph]
+            fsa = FSA.singletons_diagonal_concatenate(word1, word2, alphabet)
+            frozen_word1[frozen_word2][frozen_alph] = fsa
+            return fsa
+        fsa = FSA.singletons_diagonal_concatenate(word1, word2, alphabet)
+        sing_diag_cache[frozen_word1][frozen_word2] = {frozen_alph: fsa}
+        return fsa
+    fsa = FSA.singletons_diagonal_concatenate(word1, word2, alphabet)
+    sing_diag_cache[frozen_word1] = {frozen_word2: {frozen_alph: fsa}}
+    return fsa
+
 def clear_caches():
     intersection_cache = {}
     quotient_cache = {}
@@ -152,6 +171,7 @@ def clear_caches():
     single_word_FSA_cache = {}
     product_cache = {}
     projection_cache = {}
+    sing_diag_cache = {}
     return None
 
 class AutostackableStructure:
@@ -234,17 +254,17 @@ class Equation:
                 rewritable_prefixes = intersection(quotient(rule.prefixes, single_word_FSA(self.prefixes.alphabet, self.left[:index])), self.prefixes)
                 new_left = self.left[:index] + rule.right + self.left[index + len(rule.left):]
                 if len(rewritable_prefixes.accepts) > 0:
-                    self.prefixes = intersection(self.prefixes, complement(rewritable_prefixes))
+                    self.prefixes = BFS(intersection(self.prefixes, complement(rewritable_prefixes)))
                     if new_left != self.right:
-                        return Equation(new_left, self.right, rewritable_prefixes)
+                        return Equation(new_left, self.right, BFS(rewritable_prefixes))
         for index in range(len(self.right) - len(rule.left) + 1):
             if self.right[index:index + len(rule.left)] == rule.left:
                 rewritable_prefixes = intersection(quotient(rule.prefixes, single_word_FSA(self.prefixes.alphabet, self.right[:index])), self.prefixes)
                 new_right = self.right[:index] + rule.right + self.right[index + len(rule.left):]
                 if len(rewritable_prefixes.accepts) > 0:
-                    self.prefixes = intersection(self.prefixes, complement(rewritable_prefixes))
+                    self.prefixes = BFS(intersection(self.prefixes, complement(rewritable_prefixes)))
                     if self.left != new_right:
-                        return Equation(self.left, new_right, rewritable_prefixes)
+                        return Equation(self.left, new_right, BFS(rewritable_prefixes))
         return None
 
     def prefix_reduce(self, rule):
@@ -253,9 +273,10 @@ class Equation:
         # This returns a bool, just so we can track "did something get reduced".
         # I'm not sure how helpful that is, but there might be situations where
         # somebody wants to use that as a "we're making progress" indicator.
+        logger.log(13, f"reducing {self} with {rule}")
         L_cross_A_star = product(self.prefixes, FSA.all_FSA(self.prefixes.alphabet))
         P_squared_cap_diag = intersection(product(rule.prefixes, rule.prefixes), diagonal(self.prefixes.alphabet))
-        words_cat_diag = FSA.singletons_diagonal_concatenate(rule.left, rule.right, self.prefixes.alphabet)
+        words_cat_diag = singletons_diagonal_concatenate(rule.left, rule.right, self.prefixes.alphabet)
         synch = intersection(L_cross_A_star, concatenation(P_squared_cap_diag, words_cat_diag))
         rewritten_words = complement(projection(synch, [0]))
         if len(rewritten_words.accepts) > 0:
@@ -286,8 +307,8 @@ class Equation:
         # Returns a pair of rules. You'll need to do some post-processing
         # in case self.prefixes or either set of rule prefixes is empty.
         (left_better, right_better, incomp) = order(self.left, self.right, self.prefixes)
-        self.prefixes = incomp
-        return (Rule(self.left, self.right, right_better), Rule(self.right, self.left, left_better))
+        self.prefixes = BFS(incomp)
+        return (Rule(self.left, self.right, BFS(right_better)), Rule(self.right, self.left, BFS(left_better)))
 
 class RewritingChain:
 
@@ -443,7 +464,7 @@ def check_pre_pairs(pre_pairs, unresolved, alphabet, everything, rules):
                 unresolved.append(new_equation)
     return True
 
-def resolve_equalities(unresolved, rules, alph, ordering, int_pairs, ext_pairs, pre_pairs):
+def rewrite_equations(unresolved, rules):
     fully_reduced = []
     while len(unresolved) > 0:
         current_equation = unresolved.pop()
@@ -465,13 +486,19 @@ def resolve_equalities(unresolved, rules, alph, ordering, int_pairs, ext_pairs, 
             fully_reduced.append(current_equation)
         else:
             logger.log(too_much_info, f"Forgetting empty equation {current_equation}")
-    while len(fully_reduced) > 0:
-        current_equation = fully_reduced.pop()
+    for eqn in fully_reduced:
+        unresolved.append(eqn)
+    return True
+
+def resolve_equalities(unresolved, rules, ordering, int_pairs, ext_pairs, pre_pairs):
+    new_unresolved = []
+    while len(unresolved) > 0:
+        current_equation = unresolved.pop()
         logger.log(handle_specific_equation, f"Orienting equation: {current_equation}")
         possible_new_rules = current_equation.orient(ordering)
         if len(current_equation.prefixes.accepts) > 0:
             logger.log(equation_did_not_resolve, f"Returning unoriented equation {current_equation}")
-            unresolved.append(current_equation)
+            new_unresolved.append(current_equation)
         if len(possible_new_rules[0].prefixes.accepts) > 0:
             new_rule = possible_new_rules[0]
             logger.log(add_rule, f"Adding rule {new_rule}")
@@ -498,6 +525,8 @@ def resolve_equalities(unresolved, rules, alph, ordering, int_pairs, ext_pairs, 
                 pre_pairs.append([index, len(rules)])
                 pre_pairs.append([len(rules), index])
             rules.append(new_rule)
+    for eqn in new_unresolved:
+        unresolved.append(eqn)
     return True
 
 def combine_equations(unresolved):
@@ -521,11 +550,14 @@ def prune_prefixes(unresolved, rules):
     fully_reduced = []
     while len(unresolved) > 0:
         equation = unresolved.pop()
-        logger.log(handle_specific_equation, f"Rewriting prefixes in equation {equation}")
-        for rule in rules:
-            equation.prefix_reduce(rule)
-        if len(equation.prefixes.accepts) > 0 and equation.left != equation.right:
-            logger.log(equation_did_not_resolve, f"Returning equation {equation}")
+        if len(equation.left) > 10 or len(equation.right) > 10:
+            logger.log(handle_specific_equation, f"Rewriting prefixes in equation {equation}")
+            for rule in rules:
+                equation.prefix_reduce(rule)
+            if len(equation.prefixes.accepts) > 0 and equation.left != equation.right:
+                logger.log(equation_did_not_resolve, f"Returning equation {equation}")
+                fully_reduced.append(equation)
+        else:
             fully_reduced.append(equation)
     for eq in fully_reduced:
         unresolved.append(eq)
@@ -600,14 +632,22 @@ def pKB(group, max_rule_number = 1000, max_rule_length = None, max_time = 600):
         # Equality resolution
         logger.log(periodic_rule_display, f"Rules are {rules}")
         combine_equations(unresolved)
-        logger.log(major_steps, f"Resolving {len(unresolved)} equations.")
-        resolve_equalities(unresolved, rules, group.generators, group.ordering, int_pairs, ext_pairs, pre_pairs)
-        # We've run the equality resolution; need to now check if unresolved is empty, and do prefix resolution step if not
-        # The logic here could almost certainly be made more efficient. I expect that prefix resolution is slow, and doing it less often would likely be preferable.
-        # But I'm forcing myself to remember that this is proof of concept, not finished product. Efficiencies can be made later.
+        rewrite_equations(unresolved, rules)
+        if group.clean_first:
+            pass
+        else:
+            logger.log(major_steps, f"Resolving {len(unresolved)} equations.")
+            resolve_equalities(unresolved, rules, group.ordering, int_pairs, ext_pairs, pre_pairs)
         if len(unresolved) > 0:
+            pass
             logger.log(major_steps, f"Pruning prefixes in {len(unresolved)} unresolved equations.")
             prune_prefixes(unresolved, rules)
+        if group.clean_first:
+            rewrite_equations(unresolved, rules)
+            logger.log(major_steps, f"Resolving {len(unresolved)} equations.")
+            resolve_equalities(unresolved, rules, group.ordering, int_pairs, ext_pairs, pre_pairs)
+        else:
+            pass
         # And now we check if we need to halt.
         if len(unresolved) == 0:
             if len(int_pairs) + len(ext_pairs) + len(pre_pairs) == 0: # i.e., every equality has been resolved, after checking that there are no critical pairs left to check

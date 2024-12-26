@@ -539,6 +539,7 @@ def piecewise_ordering(automaton, orderings):
                 left = FSA.union(left, gained_left)
                 right = FSA.union(right, gained_right)
         incomp = FSA.intersection(FSA.complement(left), FSA.complement(right))
+        incomp = FSA.intersection(incomp, prefixes)
         return (left, right, incomp)
     return ordering
 
