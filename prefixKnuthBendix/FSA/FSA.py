@@ -905,7 +905,8 @@ def singletons_diagonal_concatenate(word1, word2, alph):
     elif len(word1) < len(word2):
         for index, letter in enumerate(word2[minlen:]):
             starting_debt += ordered_alph.index(letter) * len(alph) ** index
-    transitions[(word1[minlen - 1], word2[minlen - 1])][minlen - 1] = minlen + starting_debt
+    if minlen > 0:
+        transitions[(word1[minlen - 1], word2[minlen - 1])][minlen - 1] = minlen + starting_debt
     if len(word1) >= len(word2):
         # The first layer has an extra thing to worry about compared to all
         # of the other layers. Namely, we have to worry about wandering between
@@ -941,4 +942,8 @@ def singletons_diagonal_concatenate(word1, word2, alph):
                 transitions[(None, oldest_letter)][current_state] = next_layer_start + state_index // len(alph)
             layer_start = next_layer_start
             next_layer_start = next_layer_start + len(alph) ** (diff - layer_index - 1)
-    return FSA(states, accepts, squared_alph, transitions)
+    out = FSA(states, accepts, squared_alph, transitions)
+    if minlen == 0:
+        # Oops, special case.
+        out.change_init(starting_debt)
+    return out
