@@ -1,8 +1,13 @@
 # This is an example file for prefixKnuthBendix.
 # This file finds an autostackable structure for BS(1, 2).
-# You should look at Cox333pKB.py first. It's more thoroughly commented than this.
+# The original point of including BS(1, 2) was to show how to make a custom
+# ordering, which `BS12pKB.py` does adequately. This is a more streamlined
+# version, which I've included in the repo to demonstrate using the
+# `piecewise_ordering` function from orderAutomata.
+# This version appears to be slightly faster than the custom one, though I know
+# not why. 
 
-from prefixKnuthBendix.prefixKnuthBendix import Group, pKB
+from prefixKnuthBendix.prefixKnuthBendix import *
 from prefixKnuthBendix.FSA import FSA
 from prefixKnuthBendix.pkbLogging import pkbLogging
 import atexit
@@ -10,6 +15,7 @@ import logging.config
 import logging.handlers
 from queue import SimpleQueue
 import copy
+from prefixKnuthBendix.orderAutomata.orderAutomata import piecewise_ordering
 
 union_cache = {}
 def union(fsa1, fsa2):
@@ -39,7 +45,7 @@ format_keys = {
     "line": "lineno",
     "thread_name": "threadName"
 }
-file_handler = pkbLogging.make_file_handler("BS12.jsonl", level = 11, format_keys = format_keys)
+file_handler = pkbLogging.make_file_handler("BS12_copy.jsonl", level = 11, format_keys = format_keys)
 stdout_handler = pkbLogging.make_stdout_handler(level = 13)
 log_queue = SimpleQueue()
 queue_handler = logging.handlers.QueueHandler(log_queue)
@@ -48,63 +54,14 @@ queue_listener.start()
 atexit.register(queue_listener.stop)
 logger.addHandler(queue_handler)
 
-# Note that you need to explicitly name the inverses and write down the
-# inverse relations.
-BS12 = Group({'a', 't', 'A', 'T'}, [[['a','A'],[]], [['A', 'a'], []], [['t', 'T'], []], [['T', 't'], []], [['t', 'a', 'T'], ['a', 'a']]])
+BS12 = Group({'a', 't', 'A', 'T'}, [[['a','A'],[]], [['A', 'a'], []], [['t', 'T'], []], [['T', 't'], []], [['t', 'a', 'T'], ['a', 'a']], [['t', 'A', 'T'], ['A', 'A']]])
 alph = {'a', 't', 'A', 'T'}
-expanded_alph = {'a', 't', 'A', 'T', None}
-squared_alph = set()
-for let in alph:
-    for let2 in alph:
-        squared_alph.add((let, let2))
-    squared_alph.add((let, None))
-    squared_alph.add((None, let))
 
-# We're doing a bit of a weird ordering for this. It can be built from an FSA,
-# but that version is incredibly slow.
-# When you do this yourself, the key things to remember are:
-# 1) The inputs of your ordering function are the words being compared
-# *and* the language after which they're compared. You don't strictly need
-# to do anything with the language, but you do need it as an input.
-# For the remainder of this, I'll call the inputs v, w, and L (in that order).
-# 2) The output of your ordering needs to be a triple (left, right, incomp),
-# where left is an FSA accepting words u such that uv < uw,
-# right is an FSA accepting words u such that uv > uw,
-# and incomp is an FSA accepting all of the other words from inter. 
 
-# If you're especially interested in this ordering in particular,
-# we first count the number of ts and Ts (more is bigger), then use a piecewise
-# ordering as a tiebreaker. The tiebreaker partitions all words into seven sets:
-# i) Elements of {a, A}^2
-# ii) Words with T before the first t and an even number of a/As before the first t but after the most recent T before that
-# iii) Words with T before the first t and an odd number of a/As before the first t but after the most recent T before that
-# iv) Words with T but no t and an even number of a/As after the last T
-# v) Words with T but no t and an odd number of a/As after the last T
-# vi) Words with t which do not have a T before the first t
-# We only compare two words if they fall in the same set -- that's conveniently
-# checked with finite state automata. If both words are in cases i, iii, iv, v, or vi
-# we use ordering A. In case ii, we use ordering B.
-# Both orderings A and B map words to N[1/2]*, i.e. lists of natural numbers possibly plus 1/2.
-# We have an entry for each t and T, in the order they appear in the word.
-# For both orderings, the entry for each T is the number of preceeding a/As.
-# For ordering A, the entry for each t is the number of later a/As in the word + 1/2.
-# For ordering B, the entry for each t is the number of earlier a/As in the word + 1/2.
-# Splitting things into cases is mostly to get the ordering to play nice with
-# concatenation on the right. The extra 1/2 is just to avoid T and t tying in
-# an annoying way. Morally, ordering A is saying "move t to the right" and 
-# ordering B is saying "move t to the left".
-# Break ties with length. This is relevant because of aA.
-# 
-# I'm not 100% convinced that this *is* compatible with concatenation on the right
-# in all cases. But it's late, and I want to get code running, so I'll deal with
-# the proof later.  
-# Update now that I've thought about it: Yeah, this is fine. Tedious to check,
-# but all of the state orderings play nice with all of the transitions.
-# (I.e., if u and v land at the same state and u < v with the ordering at that
-# state, then ul < vl with the ordering at the state that ul and vl land at.)
-# It's a straightforward induction proof from there. 
-
-def ordering_a(u, v):
+everything = FSA.all_FSA(alph)
+nothing = FSA.empty_FSA(alph)
+piecewise_automaton = FSA.FSA(6, set(), alph, {'a': [0, 1, 2, 4, 3, 5], 'A': [0, 1, 2, 4, 3, 5], 't': [5, 1, 2, 1, 2, 5], 'T': [3, 1, 2, 3, 3, 5]})
+def ordering_a(u, v, L):
     scores_u = []
     scores_v = []
     for index, let in enumerate(u):
@@ -119,12 +76,15 @@ def ordering_a(u, v):
             scores_v.append(v[index:].count('a') + v[index:].count('A') + 0.5)
     for i in range(len(scores_u)):
         if scores_u[i] > scores_v[i]:
-            return True
-        elif scores_u[i] < scores_v[i]:
-            return False
-    return -1
-
-def ordering_b(u, v):
+            return (nothing, everything, nothing)
+        if scores_u[i] < scores_v[i]:
+            return (everything, nothing, nothing)
+    if len(u) > len(v):
+        return (nothing, everything, nothing)
+    if len(u) < len(v):
+        return (everything, nothing, everything)
+    return (nothing, nothing, everything)
+def ordering_b(u, v, L):
     scores_u = []
     scores_v = []
     for index, let in enumerate(u):
@@ -139,101 +99,173 @@ def ordering_b(u, v):
             scores_v.append(v[:index].count('a') + v[:index].count('A') + 0.5)
     for i in range(len(scores_u)):
         if scores_u[i] > scores_v[i]:
-            return True
-        elif scores_u[i] < scores_v[i]:
-            return False
-    return -1
-
-everything = FSA.all_FSA(alph)
-nothing = FSA.empty_FSA(alph)
-base_case_machine = FSA.FSA(6, {}, alph, {'a': [0, 1, 2, 4, 3, 5], 'A': [0, 1, 2, 4, 3, 5], 't': [5, 1, 2, 1, 2, 5], 'T': [3, 1, 2, 3, 3, 5]})
-case_machines = [0] * 6
-word_machines = [0] * 6
-for i in range(6):
-    case_machines[i] = copy.deepcopy(base_case_machine)
-    case_machines[i].accepts = {i}
-    word_machines[i] = copy.deepcopy(base_case_machine)
-    word_machines[i].change_init(i) 
-    # I'm very glad that I'm *not* putting things in BFS form when I create them or change their initial states
-
-def ordering(u, v, L):
-    # Easy case first. Different number of t-type letters means more is bigger.
-    if u.count('t') + u.count('T') > v.count('t') + v.count('T'):
+            return (nothing, everything, nothing)
+        if scores_u[i] < scores_v[i]:
+            return (everything, nothing, nothing)
+    if len(u) > len(v):
         return (nothing, everything, nothing)
+    if len(u) < len(v):
+        return (everything, nothing, everything)
+    return (nothing, nothing, everything)
+orderings = [ordering_a, ordering_b, ordering_a, ordering_b, ordering_a, ordering_a]
+
+pieces = piecewise_ordering(piecewise_automaton, orderings)
+# Note that the actual ordering is still a tie-break ordering. We need to do this
+# specifically for the rules tT -> 1 and Tt -> 1, because they can misbehave
+# by not ending at the same state. This is worth keeping in mind when you
+# make your own regular piecewise partial order. 
+def ordering(u, v, L):
     if u.count('t') + u.count('T') < v.count('t') + v.count('T'):
         return (everything, nothing, nothing)
-    # Now we get to the big giant mess. u and v have the same number of t-type
-    # letters, so we're in the piecewise part, and the piece we care about
-    # depends on the prefix.
-    # ~~This is going to be a huge mess of conditionals.~~ 
-    # Scratch that, I figured out a much nicer way to do this.
-    left = nothing
-    right = nothing
-    r = ordering_a(u, v)
-    if r == -1:
-        if len(u) > len(v):
-            for prefix_case in range(6):
-                final_case_u = word_machines[prefix_case].target_state(u)
-                final_case_v = word_machines[prefix_case].target_state(v)
-                if final_case_u == final_case_v:
-                    if final_case_u in [0, 2, 3, 4, 5]:
-                        right = union(right, case_machines[prefix_case])
-        elif len(v) > len(u):
-            for prefix_case in range(6):
-                final_case_u = word_machines[prefix_case].target_state(u)
-                final_case_v = word_machines[prefix_case].target_state(v)
-                if final_case_u == final_case_v:
-                    if final_case_u in [0, 2, 3, 4, 5]:
-                        left = union(left, case_machines[prefix_case])
-    elif r:
-        for prefix_case in range(6):
-            final_case_u = word_machines[prefix_case].target_state(u)
-            final_case_v = word_machines[prefix_case].target_state(v)
-            if final_case_u == final_case_v:
-                if final_case_u in [0, 2, 3, 4, 5]:
-                    right = union(right, case_machines[prefix_case])
-    else:
-        for prefix_case in range(6):
-            final_case_u = word_machines[prefix_case].target_state(u)
-            final_case_v = word_machines[prefix_case].target_state(v)
-            if final_case_u == final_case_v:
-                if final_case_u in [0, 2, 3, 4, 5]:
-                    left = union(left, case_machines[prefix_case])
-    r = ordering_b(u, v)
-    if r == -1:
-        if len(u) > len(v):
-            for prefix_case in range(6):
-                final_case_u = word_machines[prefix_case].target_state(u)
-                final_case_v = word_machines[prefix_case].target_state(v)
-                if final_case_u == final_case_v:
-                    if final_case_u == 1:
-                        right = union(right, case_machines[prefix_case])
-        elif len(v) > len(u):
-            for prefix_case in range(6):
-                final_case_u = word_machines[prefix_case].target_state(u)
-                final_case_v = word_machines[prefix_case].target_state(v)
-                if final_case_u == final_case_v:
-                    if final_case_u == 1:
-                        left = union(left, case_machines[prefix_case])
-    elif r:
-        for prefix_case in range(6):
-            final_case_u = word_machines[prefix_case].target_state(u)
-            final_case_v = word_machines[prefix_case].target_state(v)
-            if final_case_u == final_case_v:
-                if final_case_u == 1:
-                    right = union(right, case_machines[prefix_case])
-    else:
-        for prefix_case in range(6):
-            final_case_u = word_machines[prefix_case].target_state(u)
-            final_case_v = word_machines[prefix_case].target_state(v)
-            if final_case_u == final_case_v:
-                if final_case_u == 1:
-                    left = union(left, case_machines[prefix_case])
-    incomp = FSA.complement(union(left, right))
-    return(left, right, incomp)
+    if u.count('t') + u.count('T') > v.count('t') + v.count('T'):
+        return (nothing, everything, nothing)
+    return pieces(u, v, L)
 
 BS12.ordering = ordering
-BS12.clean_first = True
 
-pKB(BS12, max_time = 2000, max_rule_length = 100)
+# We're using an alternate strategy here. It turns out that you need to
+# both prune prefixes aggressively and do a bit of boundary reduction for this
+# to work. I don't want that in the standard strategy.
+def resolve_equations_alternate(unresolved, rules, ordering, int_pairs, ext_pairs, pre_pairs):
+    # Let's see if delaying Ta^(2n)t = a^n equations helps
+    new_unresolved = []
+    while len(unresolved) > 0:
+        current_equation = unresolved.pop()
+        if (current_equation.left != [] and current_equation.right != []) and ((current_equation.left[0] == 'T' and current_equation.left[-1] == 't' and len(current_equation.left) > 2) or (current_equation.right[0] == 'T' and current_equation.right[-1] == 't' and len(current_equation.right) > 2)):
+            new_unresolved.append(current_equation)
+        else:
+            logger.log(handle_specific_equation, f"Orienting equation: {current_equation}")
+            possible_new_rules = current_equation.orient(ordering)
+            if len(current_equation.prefixes.accepts) > 0:
+                logger.log(equation_did_not_resolve, f"Returning unoriented equation {current_equation}")
+                new_unresolved.append(current_equation)
+            if len(possible_new_rules[0].prefixes.accepts) > 0:
+                new_rule = possible_new_rules[0]
+                logger.log(add_rule, f"Adding rule {new_rule}")
+                for index, old_rule in enumerate(rules):
+                    if len(new_rule.left) < len(old_rule.left):
+                        int_pairs.append([len(rules), index])
+                    elif len(new_rule.left) > len(old_rule.left):
+                        int_pairs.append([index, len(rules)])
+                    ext_pairs.append([index, len(rules)])
+                    ext_pairs.append([len(rules), index])
+                    pre_pairs.append([index, len(rules)])
+                    pre_pairs.append([len(rules), index])
+                rules.append(new_rule)
+            if len(possible_new_rules[1].prefixes.accepts) > 0:
+                new_rule = possible_new_rules[1]
+                logger.log(add_rule, f"Adding rule {new_rule}")
+                for index, old_rule in enumerate(rules):
+                    if len(new_rule.left) < len(old_rule.left):
+                        int_pairs.append([len(rules), index])
+                    elif len(new_rule.left) > len(old_rule.left):
+                        int_pairs.append([index, len(rules)])
+                    ext_pairs.append([index, len(rules)])
+                    ext_pairs.append([len(rules), index])
+                    pre_pairs.append([index, len(rules)])
+                    pre_pairs.append([len(rules), index])
+                rules.append(new_rule)
+    for eqn in new_unresolved:
+        unresolved.append(eqn)
+    return True
+
+def pKB_alternate(group, max_rule_number = 1000, max_rule_length = None, max_time = 600):
+    start_time = time.time()
+    everything = FSA.all_FSA(group.generators)
+    if hasattr(group, 'autostackableStructure'):
+        if group.autostackableStructure.is_convergent:
+            return None
+        else:
+            rules = group.autostackableStructure.rules
+            int_pairs = group.autostackableStructure.int_pairs
+            ext_pairs = group.autostackableStructure.ext_pairs
+            pre_pairs = group.autostackableStructure.pre_pairs
+            unresolved = group.autostackableStructure.unresolved
+    else:
+        rules = []
+        int_pairs = []
+        ext_pairs = []
+        pre_pairs = []
+        unresolved = []
+        is_convergent = False
+        for rel in group.relators:
+            unresolved.append(Equation(rel[0], rel[1], copy.deepcopy(everything)))
+    squared_alph = []
+    for let1 in alph:
+        for let2 in alph:
+            squared_alph.append((let1, let2))
+        squared_alph.append((let1, None))
+        squared_alph.append((None, let1))
+    while True:
+        if len(int_pairs) > 0:
+            logger.log(major_steps, f"Checking {len(int_pairs)} pairs of rules for interior critical pairs.")
+            check_int_pairs(int_pairs, unresolved, group.generators, rules)
+            clean_rules(rules, int_pairs, ext_pairs, pre_pairs)
+        elif len(ext_pairs) > 0:
+            logger.log(major_steps, f"Checking {len(ext_pairs)} pairs of rules for exterior critical pairs.")
+            check_ext_pairs(ext_pairs, unresolved, group.generators, rules)
+        elif len(pre_pairs) > 0:
+            logger.log(major_steps, f"Checking {len(pre_pairs)} pairs of rules for prefix critical pairs.")
+            check_pre_pairs(pre_pairs, unresolved, group.generators, everything, rules)
+        logger.log(periodic_rule_display, f"Rules are {rules}")
+        combine_equations(unresolved)
+        rewrite_equations(unresolved, rules)
+        logger.log(major_steps, f"Resolving {len(unresolved)} equations.")
+        resolve_equations_alternate(unresolved, rules, group.ordering, int_pairs, ext_pairs, pre_pairs)
+        if len(int_pairs) + len(ext_pairs) + len(pre_pairs) == 0 and len(unresolved) > 0:
+            # We are going to prune prefixes selectively, because doing so
+            # unselectively seems to be giving us huge ridiculous FSAs.
+            if len(rules) > 0:
+                partial_rewriter = complement(FSA.all_FSA(squared_alph))
+                for rule in rules:
+                    words_dot_diag = singletons_diagonal_concatenate(rule.left, rule.right, group.generators)
+                    squared_prefixes = product(rule.prefixes, rule.prefixes)
+                    restricted_squared_prefixes = intersection(squared_prefixes, diagonal(group.generators))
+                    rule_rewriter = concatenation(restricted_squared_prefixes, words_dot_diag)
+                    partial_rewriter = union(partial_rewriter, rule_rewriter)
+            for eqn in unresolved:
+                if eqn.left[:3] == ['T', 'a', 'a'] or eqn.left[:3] == ['T', 'A', 'A'] or eqn.right[:3] == ['T', 'a', 'a'] or eqn.right[:3] == ['T', 'A', 'A']:
+                    eqn.prefix_reduce(partial_rewriter)
+            # I don't want to rewrite *all* of the boundaries, just
+            # the ones that I expect to give me trouble.
+            # In this case, that's specifically Ta^(2n)t = a^n, and I only
+            # want to freely reduce at the boundary, nothing more complex.
+            checked = []
+            while len(unresolved) > 0:
+                eqn = unresolved.pop()
+                if eqn.left[:3] == ['T', 'a', 'a'] or eqn.left[:3] == ['T', 'A', 'A'] or eqn.right[:3] == ['T', 'a', 'a'] or eqn.right[:3] == ['T', 'A', 'A']:
+                    logger.log(13, f"Reducing {eqn} at its boundary!")
+                    for rule in rules:
+                        if rule.left == ['t', 'T']:
+                            possible_new_eqn = eqn.boundary_reduce(rule)
+                            logger.log(13, f"Added equation {possible_new_eqn}. Reduced original to {eqn}.")
+                            if possible_new_eqn:
+                                unresolved.append(possible_new_eqn)
+                checked.append(eqn)
+            for eqn in checked:
+                unresolved.append(eqn)
+            combine_equations(unresolved)
+            rewrite_equations(unresolved, rules)
+            resolve_equations(unresolved, rules, group.ordering, int_pairs, ext_pairs, pre_pairs)
+        if len(unresolved) == 0:
+            if len(int_pairs) + len(ext_pairs) + len(pre_pairs) == 0: # i.e., every equality has been resolved, after checking that there are no critical pairs left to check
+                logger.log(logging.INFO, "Stopping now. Everything converges!")
+                is_convergent = True
+                break
+        if len(rules) > max_rule_number:
+            logger.log(logging.INFO, "Stopping now. There are too many rules!")
+            break
+        if time.time() - start_time > max_time:
+            logger.log(logging.INFO, "Stopping now. This is taking too long!")
+            break
+        if check_rule_lengths(max_rule_length, unresolved):
+            logger.log(logging.INFO, "Stopping now. The rules are getting too long!")
+            break
+    AS = AutostackableStructure(is_convergent, rules, int_pairs, ext_pairs, pre_pairs, unresolved)
+    group.autostackableStructure = AS
+    logger.log(logging.INFO, f"Total time taken: {time.time() - start_time} seconds")
+    logger.log(logging.INFO, f"The current set of rules is {rules}")
+    logger.log(logging.INFO, f"{'We successfully found an autostackable structure.' if is_convergent else 'We did not find an autostackable structure.'}")
+
+pKB_alternate(BS12, max_time = 2000, max_rule_length = 100)
 
