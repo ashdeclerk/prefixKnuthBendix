@@ -446,67 +446,67 @@ def determinize(nfa):
         return True
     
     alphabet = nfa.alphabet
-    accepts = set()
+    accept_states = set()
     transitions = {}
-    for let in alphabet:
-        transitions[let] = [0]
-    currentState = 0
-    stateCount = 1
-    start = {0}
-    potential_starts = {0}
-    while potential_starts != set():
-        new_potential_starts = set()
-        for let in alphabet:
-            if is_nonish(let):
-                for state in potential_starts:
-                    new_potential_starts.update(nfa.transitions[let][state])
-        new_potential_starts.difference_update(start)
-        start.update(new_potential_starts)
-        potential_starts = new_potential_starts
-    stateLabels = {0: tuple(start)}
-    labelStates = {tuple(start): 0}
-    for i in start:
-        if i in nfa.accepts:
-            accepts.update({0})
-    while True:
-        for let in alphabet:
-            targets = set()
-            accepting = False
-            for source in stateLabels[currentState]:
-                targets.update(nfa.transitions[let][source])
-            if targets.intersection(set(nfa.accepts)) != set():
-                accepting = True
-            potential_targets = targets
-            while potential_targets != set():
-                new_potential_targets = set()
-                if let in alphabet:
-                    if is_nonish(let):
-                        for state in potential_targets:
-                            new_potential_targets.update(nfa.transitions[let][state])
-                new_potential_targets.difference_update(targets)
-                targets.update(new_potential_targets)
-                potential_targets = new_potential_targets
-            targets = tuple(targets)
-            if targets not in labelStates:
-                labelStates[targets] = stateCount
-                stateLabels[stateCount] = targets
-                transitions[let][currentState] = stateCount
-                if accepting:
-                    accepts.update({stateCount})
-                stateCount += 1
-                for let in alphabet:
-                    transitions[let].append(0)
-            else:
-                transitions[let][currentState] = labelStates[targets]
-        currentState += 1
-        if currentState >= stateCount:
-            break
-    nonish_letters = set()
-    for let in alphabet:
-        if is_nonish(let):
-            nonish_letters.update({let})
-    alphabet.difference_update(nonish_letters)
-    out = BFS(FSA(stateCount, accepts, alphabet, transitions))
+    nonish_letters = []
+    for letter in alphabet:
+        if is_nonish(letter):
+            nonish_letters.append(letter)
+        else:
+            transitions[letter] = []
+    alphabet.difference_update(set(nonish_letters))
+    starting_states = {0}
+    potential_starting_states = {0}
+    while len(potential_starting_states) > 0:
+        # We need to find epsilon transitions from our current list of potential starting states.
+        new_potential_starting_states = set()
+        for letter in nonish_letters:
+            for state in potential_starting_states:
+                new_potential_starting_states.update(nfa.transitions[letter][state])
+        new_potential_starting_states.difference_update(starting_states)
+        starting_states.update(new_potential_starting_states)
+        potential_starting_states = new_potential_starting_states
+    # Now we need to actually build the rest of the fsa.
+    # Each state in the fsa corresponds to a set of states in the nfa.
+    # The dictionary `state_map` is just telling us that correspondence. 
+    state_map = {0: starting_states} 
+    # `current_state` tells us which state of the fsa we're working with
+    current_state = 0
+    # and `state_count` tells us how many states of the fsa we know about
+    state_count = 1
+    while current_state < state_count:
+        # Step 1: Figure out the states of the nfa each letter sends current_state to.
+        for letter in alphabet:
+            target_states = set()
+            for nfa_state in state_map[current_state]:
+                target_states.update(nfa.transitions[letter][nfa_state])
+            # Step 1.1: Deal with epsilon transitions
+            potential_target_states = copy.copy(target_states)
+            while len(potential_target_states) > 0:
+                new_potential_target_states = set()
+                for epsilon in nonish_letters:
+                    for nfa_state in potential_target_states:
+                        new_potential_target_states.update(nfa.transitions[epsilon][nfa_state])
+                new_potential_target_states.difference_update(target_states)
+                target_states.update(new_potential_target_states)
+                potential_target_states = copy.copy(new_potential_target_states)
+            # Step 1.2: Check if this is an old state and handle transitions appropriately
+            is_old = False
+            for fsa_state in range(state_count):
+                if state_map[fsa_state] == target_states:
+                    transitions[letter].append(fsa_state)
+                    is_old = True
+            if not is_old:
+                transitions[letter].append(state_count)
+                state_map[state_count] = target_states
+                state_count += 1
+        # Then we move on to the next state!
+        current_state += 1
+    # We have to deal with accept states!
+    for state in range(state_count):
+        if state_map[state].intersection(nfa.accepts):
+            accept_states.update({state})
+    out = BFS(FSA(state_count, accept_states, alphabet, transitions))
     return out
 
 def star(fsa):
