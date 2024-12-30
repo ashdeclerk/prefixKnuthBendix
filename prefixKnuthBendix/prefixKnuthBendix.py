@@ -187,7 +187,7 @@ class AutostackableStructure:
             self.pre_pairs = pre_pairs
             self.unresolved = unresolved
 
-    def __repr__(self):
+    def __strr__(self):
         out = f"Is convergent: {self.is_convergent}\n"
         out += "---\n"
         out += "Rules are: \n\n"
@@ -228,7 +228,7 @@ class Rule:
         self.prefixes = prefixes
     
     def __repr__(self):
-        return f"Rule({self.left}, {self.right}, {self.prefixes})"
+        return f"Rule({self.left}, {self.right}, {repr(self.prefixes)})"
     
     def __str__(self):
         return f"{self.left} => {self.right} after {self.prefixes}"
@@ -241,7 +241,7 @@ class Equation:
         self.prefixes = copy.deepcopy(prefixes)
     
     def __repr__(self):
-        return f"Equation({self.left}, {self.right}, {self.prefixes})"
+        return f"Equation({self.left}, {self.right}, {repr(self.prefixes)})"
     
     def __str__(self):
         return f"{self.left} = {self.right} after {self.prefixes}"
@@ -267,39 +267,49 @@ class Equation:
                         return Equation(self.left, new_right, BFS(rewritable_prefixes))
         return None
 
-    def prefix_reduce(self, rule):
+    def prefix_reduce(self, rewriter):
         # Reduce prefixes using rule
         # We have to do this with annoying synchronous FSA stuff. Sorry.
         # This returns a bool, just so we can track "did something get reduced".
         # I'm not sure how helpful that is, but there might be situations where
         # somebody wants to use that as a "we're making progress" indicator.
-        logger.log(13, f"reducing {self} with {rule}")
+        # We need to be a bit careful and reduce with all rules simultaneously,
+        # otherwise we might add stuff back in that's already been removed.
+        # TODO: That 
         L_cross_A_star = product(self.prefixes, FSA.all_FSA(self.prefixes.alphabet))
-        P_squared_cap_diag = intersection(product(rule.prefixes, rule.prefixes), diagonal(self.prefixes.alphabet))
-        words_cat_diag = singletons_diagonal_concatenate(rule.left, rule.right, self.prefixes.alphabet)
-        synch = intersection(L_cross_A_star, concatenation(P_squared_cap_diag, words_cat_diag))
+        synch = intersection(L_cross_A_star, rewriter)
         rewritten_words = complement(projection(synch, [0]))
+        logger.log(13, f"synch was {synch}")
         if len(rewritten_words.accepts) > 0:
-            # We rewrote something!
             new_prefixes = intersection(union(self.prefixes, projection(synch, [1])),
                                         complement(projection(synch, [0])))
-            self.prefixes = new_prefixes
+            self.prefixes = copy.deepcopy(new_prefixes)
             return True
         return False
 
     def boundary_reduce(self, rule):
         # Reduce at the boundary between prefixes and either left or right
         # This is slightly dangerous, because it ends up replacing equations by 
-        # more complex equations in some situations. I recommend using this as 
-        # a last resort "nothing else is getting us anywhere" option.
-        for index in range(1, min(len(rule.left) - 1, len(self.left))):
+        # more complex equations in some situations. It's potentially useful, so
+        # I've written the code for it, but I haven't included it in the base
+        # strategy for pKB.
+        # Apply sparingly, is the punchline. Or don't. I'm not your mom. 
+        for index in range(1, min(len(rule.left), len(self.left))):
             if self.left[:index] == rule.left[-index:]:
                 w1 = rule.left[:-index]
                 w3 = self.left[index:]
                 rewritten_prefixes = intersection(rule.prefixes, quotient(self.prefixes, single_word_FSA(self.prefixes.alphabet, w1)))
                 if len(rewritten_prefixes.accepts) > 0:
-                    self.prefixes = intersection(self.prefixes, complement(concatenation(rule.prefixes, single_word_FSA(self.prefixes.alphabet, w1))))
-                    return Equation(rule.right + w3, w1 + self.right, rewritten_prefixes)
+                    self.prefixes = BFS(intersection(self.prefixes, complement(concatenation(rule.prefixes, single_word_FSA(self.prefixes.alphabet, w1)))))
+                    return Equation(rule.right + w3, w1 + self.right, BFS(rewritten_prefixes))
+        for index in range(1, min(len(rule.left), len(self.right))):
+            if self.right[:index] == rule.left[-index:]:
+                w1 = rule.left[:-index]
+                w3 = self.right[index:]
+                rewritten_prefixes = intersection(rule.prefixes, quotient(self.prefixes, single_word_FSA(self.prefixes.alphabet, w1)))
+                if len(rewritten_prefixes.accepts) > 0:
+                    self.prefixes = BFS(intersection(self.prefixes, complement(concatenation(rule.prefixes, single_word_FSA(self.prefixes.alphabet, w1)))))
+                    return Equation(rule.right + w3, w1 + self.right, BFS(rewritten_prefixes))
         return None
 
     def orient(self, order):
@@ -445,11 +455,8 @@ def check_pre_pairs(pre_pairs, unresolved, alphabet, everything, rules):
         prefixes = product(prefixes, prefixes)
         prefixes = intersection(prefixes, diagonal(alphabet))
         prefixes = concatenation(prefixes, FSA.singletons_diagonal_concatenate(pair[0].left, pair[0].right, alphabet))
-        # The previous line was a nightmare. There was a bug that lasted for 
-        # about two years because of that step. Anyway, bug fixed!
-        prefixes = intersection(prefixes, product(pair[1].prefixes, complement(pair[1].prefixes)))
-        prefixes = projection(prefixes, [1])
-        if len(prefixes.accepts) > 0:
+        bad_prefixes = projection(intersection(prefixes, product(pair[1].prefixes, complement(pair[1].prefixes))), [1])
+        if len(bad_prefixes.accepts) > 0:
             word1 = copy.copy(pair[1].left)
             word2 = copy.copy(pair[1].right)
             p = []
@@ -457,11 +464,17 @@ def check_pre_pairs(pre_pairs, unresolved, alphabet, everything, rules):
                 p.append(word1.pop(0))
                 del word2[0]
             if len(p) > 0:
-                prefixes = concatenation(prefixes, single_word_FSA(prefixes.alphabet, p))
+                bad_prefixes = concatenation(bad_prefixes, single_word_FSA(prefixes.alphabet, p))
             if len(prefixes.accepts) > 0 and word1 != word2:
-                new_equation = Equation(word1, word2, copy.deepcopy(prefixes))
+                new_equation = Equation(word1, word2, copy.deepcopy(bad_prefixes))
                 logger.log(add_equation, f"Adding equation {new_equation}")
                 unresolved.append(new_equation)
+        # This removes "irrelevant" prefixes, i.e. stuff that should get
+        # rewritten by pair[0]. I'm not sure it's strictly necessary, but
+        # it might help in some situations.
+        # It does slow things way the heck down, because it complicates the FSAs
+        # we're working with. So it's commented out for the moment. 
+        #pair[1].prefixes = intersection(pair[1].prefixes, complement(projection(prefixes, [0])))
     return True
 
 def rewrite_equations(unresolved, rules):
@@ -490,7 +503,7 @@ def rewrite_equations(unresolved, rules):
         unresolved.append(eqn)
     return True
 
-def resolve_equalities(unresolved, rules, ordering, int_pairs, ext_pairs, pre_pairs):
+def resolve_equations(unresolved, rules, ordering, int_pairs, ext_pairs, pre_pairs):
     new_unresolved = []
     while len(unresolved) > 0:
         current_equation = unresolved.pop()
@@ -546,21 +559,24 @@ def combine_equations(unresolved):
             del unresolved[i]
     return True
 
-def prune_prefixes(unresolved, rules):
-    fully_reduced = []
-    while len(unresolved) > 0:
-        equation = unresolved.pop()
-        if len(equation.left) > 10 or len(equation.right) > 10:
-            logger.log(handle_specific_equation, f"Rewriting prefixes in equation {equation}")
-            for rule in rules:
-                equation.prefix_reduce(rule)
-            if len(equation.prefixes.accepts) > 0 and equation.left != equation.right:
-                logger.log(equation_did_not_resolve, f"Returning equation {equation}")
-                fully_reduced.append(equation)
-        else:
-            fully_reduced.append(equation)
-    for eq in fully_reduced:
-        unresolved.append(eq)
+def prune_prefixes(unresolved, rules, alph):
+    if len(rules) == 0:
+        return True
+    squared_alph = []
+    for let1 in alph:
+        for let2 in alph:
+            squared_alph.append((let1, let2))
+        squared_alph.append((let1, None))
+        squared_alph.append((None, let1))
+    partial_rewriter = complement(FSA.all_FSA(squared_alph))
+    for rule in rules:
+        words_dot_diag = singletons_diagonal_concatenate(rule.left, rule.right, alph)
+        squared_prefixes = product(rule.prefixes, rule.prefixes)
+        restricted_squared_prefixes = intersection(squared_prefixes, diagonal(alph))
+        rule_rewriter = concatenation(restricted_squared_prefixes, words_dot_diag)
+        partial_rewriter = union(partial_rewriter, rule_rewriter)
+    for eqn in unresolved:
+        eqn.prefix_reduce(partial_rewriter)
     return True
 
 def check_rule_lengths(max_rule_length, unresolved):
@@ -633,21 +649,11 @@ def pKB(group, max_rule_number = 1000, max_rule_length = None, max_time = 600):
         logger.log(periodic_rule_display, f"Rules are {rules}")
         combine_equations(unresolved)
         rewrite_equations(unresolved, rules)
-        if group.clean_first:
-            pass
-        else:
-            logger.log(major_steps, f"Resolving {len(unresolved)} equations.")
-            resolve_equalities(unresolved, rules, group.ordering, int_pairs, ext_pairs, pre_pairs)
+        logger.log(major_steps, f"Resolving {len(unresolved)} equations.")
+        resolve_equations(unresolved, rules, group.ordering, int_pairs, ext_pairs, pre_pairs)
         if len(unresolved) > 0:
-            pass
             logger.log(major_steps, f"Pruning prefixes in {len(unresolved)} unresolved equations.")
-            prune_prefixes(unresolved, rules)
-        if group.clean_first:
-            rewrite_equations(unresolved, rules)
-            logger.log(major_steps, f"Resolving {len(unresolved)} equations.")
-            resolve_equalities(unresolved, rules, group.ordering, int_pairs, ext_pairs, pre_pairs)
-        else:
-            pass
+            prune_prefixes(unresolved, rules, group.generators)
         # And now we check if we need to halt.
         if len(unresolved) == 0:
             if len(int_pairs) + len(ext_pairs) + len(pre_pairs) == 0: # i.e., every equality has been resolved, after checking that there are no critical pairs left to check

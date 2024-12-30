@@ -79,6 +79,10 @@ def ordering_a(u, v, L):
             return (nothing, everything, nothing)
         if scores_u[i] < scores_v[i]:
             return (everything, nothing, nothing)
+    if len(u) > len(v):
+        return (nothing, everything, nothing)
+    if len(u) < len(v):
+        return (everything, nothing, everything)
     return (nothing, nothing, everything)
 def ordering_b(u, v, L):
     scores_u = []
@@ -98,6 +102,10 @@ def ordering_b(u, v, L):
             return (nothing, everything, nothing)
         if scores_u[i] < scores_v[i]:
             return (everything, nothing, nothing)
+    if len(u) > len(v):
+        return (nothing, everything, nothing)
+    if len(u) < len(v):
+        return (everything, nothing, everything)
     return (nothing, nothing, everything)
 orderings = [ordering_a, ordering_b, ordering_a, ordering_a, ordering_a, ordering_a]
 
