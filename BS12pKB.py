@@ -77,6 +77,7 @@ def ordering_a(u, v, L):
     for i in range(len(scores_u)):
         if scores_u[i] > scores_v[i]:
             return (nothing, everything, nothing)
+            # This is (language where u < v, language where v < u, language where u and v are incomparable)
         if scores_u[i] < scores_v[i]:
             return (everything, nothing, nothing)
     if len(u) > len(v):
