@@ -907,12 +907,10 @@ def singletons_diagonal_concatenate(word1, word2, alph):
             starting_debt += ordered_alph.index(letter) * len(alph) ** index
     if minlen > 0:
         transitions[(word1[minlen - 1], word2[minlen - 1])][minlen - 1] = minlen + starting_debt
-    if len(word1) >= len(word2):
+    if len(word1) > len(word2):
         # The first layer has an extra thing to worry about compared to all
         # of the other layers. Namely, we have to worry about wandering between
         # the first layer rather than moving on to the second layer.
-        # We're also dealing with same-length words here so we don't need
-        # an extra case for them. 
         for state_index in range(next_layer_start - layer_start):
             current_state = state_index + layer_start
             oldest_letter = ordered_alph[state_index % len(alph)]
@@ -942,6 +940,10 @@ def singletons_diagonal_concatenate(word1, word2, alph):
                 transitions[(None, oldest_letter)][current_state] = next_layer_start + state_index // len(alph)
             layer_start = next_layer_start
             next_layer_start = next_layer_start + len(alph) ** (diff - layer_index - 1)
+    if len(word1) == len(word2):
+        # No memory needed, we just loop on (l, l).
+        for let in alph:
+            transitions[(let, let)][minlen] = minlen
     out = FSA(states, accepts, squared_alph, transitions)
     if minlen == 0:
         # Oops, special case.

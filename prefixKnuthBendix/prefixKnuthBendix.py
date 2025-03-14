@@ -282,7 +282,7 @@ class Equation:
         logger.log(13, f"synch was {synch}")
         if len(rewritten_words.accepts) > 0:
             new_prefixes = intersection(union(self.prefixes, projection(synch, [1])),
-                                        complement(projection(synch, [0])))
+                                        complement(projection(rewriter, [0])))
             self.prefixes = copy.deepcopy(new_prefixes)
             return True
         return False
@@ -329,7 +329,7 @@ class RewritingChain:
         return f"RewritingChain({self.words})"
     
     def __str__(self):
-        return f"{" => ".join(str(word) for word in self.words)}"
+        return f'{" => ".join(str(word) for word in self.words)}'
 
 
 def check_int_pairs(int_pairs, unresolved, alphabet, rules):

@@ -43,7 +43,7 @@ file_handler = pkbLogging.make_file_handler("Cox333.jsonl", level = 11, format_k
 # and stdout handler. If you want to just see the major steps in stdout but
 # want everything logged to a file, you can set the stdout handler level to 
 # 19, for example.
-stdout_handler = pkbLogging.make_stdout_handler(level = 11)
+stdout_handler = pkbLogging.make_stdout_handler(level = 19)
 # Both the file handler and stdout handler get thrown into a queue handler,
 # because that has some effect on performance. Logging takes time, and 
 # this puts logging on a separate thread.
