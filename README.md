@@ -1,6 +1,6 @@
-# PyrefixKB
+# PrefixKB
 
-PyrefixKB implements prefix-Knuth-Bendix (a procedure to search for 
+PrefixKB implements prefix-Knuth-Bendix (a procedure to search for 
 autostackable structures) in Python. For a description of prefix-Knuth-Bendix,
 please see Ash DeClerk's PhD dissertation.
 
