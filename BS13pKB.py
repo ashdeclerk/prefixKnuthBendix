@@ -1,8 +1,7 @@
 # This is an example file for prefixKnuthBendix.
 # This file finds an autostackable structure for BS(1, 3).
 # This is based on a comment by Susan Hermiller that the work for BS(1, 2)
-# can probably be extended very easily to BS(1, n) -- I suspect that we can
-# actually get all the way to BS(m, n) with a bit more work.
+# can probably be extended very easily to BS(1, n).
 
 from prefixKnuthBendix.prefixKnuthBendix import *
 from prefixKnuthBendix.FSA import FSA
@@ -57,6 +56,11 @@ alph = {'a', 't', 'A', 'T'}
 
 everything = FSA.all_FSA(alph)
 nothing = FSA.empty_FSA(alph)
+# I hypothesize that you can readily adjust for BS(1, n) by changing the piecewise automaton as follows:
+# The number of states should be 3 + n. States 1 and 2 are sinks, state 0 transitions via t to state 1 and via T to state 3,
+# and states 3 through 2 + n form a cycle with a increasing amongst these states, A decreasing (both of those looping
+# as needed), T going from any of these states to state 3, and t going to either state 2 (from state 3 only) or to state 1.
+# Adjust the orderings appropriately -- states 2 and 3 get ordering b, but every other state gets ordering a. 
 piecewise_automaton = FSA.FSA(6, set(), alph, {'a': [0, 1, 2, 4, 5, 3], 'A': [0, 1, 2, 5, 3, 4], 't': [1, 1, 2, 2, 1, 1], 'T': [3, 1, 2, 3, 3, 3]})
 def ordering_a(u, v, L):
     scores_u = []
