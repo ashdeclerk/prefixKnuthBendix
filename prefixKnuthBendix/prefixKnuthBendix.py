@@ -481,7 +481,7 @@ def rewrite_equations(unresolved, rules):
     fully_reduced = []
     while len(unresolved) > 0:
         current_equation = unresolved.pop()
-        logger.log(too_much_info, f"Attempting to reduce {current_equation}")
+        logger.log(handle_specific_equation, f"Attempting to reduce {current_equation}")
         reduced = False
         for rule in rules:
             old_equation = copy.deepcopy(current_equation)
@@ -544,15 +544,16 @@ def resolve_equations(unresolved, rules, ordering, int_pairs, ext_pairs, pre_pai
 
 def combine_equations(unresolved):
     for i in range(len(unresolved) - 1):
-        for j in range(i + 1, len(unresolved)):
-            if unresolved[i].left == unresolved[j].left and unresolved[i].right == unresolved[j].right:
-                logger.log(handle_specific_equation, f"Merging equation {unresolved[j]} into {unresolved[i]}")
-                unresolved[i].prefixes = FSA.union(unresolved[i].prefixes, unresolved[j].prefixes)
-                unresolved[j].prefixes.accepts = set()
-            elif unresolved[i].left == unresolved[j].right and unresolved[i].right == unresolved[j].left:
-                logger.log(handle_specific_equation, f"Merging equation {unresolved[j]} into {unresolved[i]}")
-                unresolved[i].prefixes = FSA.union(unresolved[i].prefixes, unresolved[j].prefixes)
-                unresolved[j].prefixes.accepts = set()
+        if len(unresolved[i].prefixes.accepts) > 0:
+            for j in range(i + 1, len(unresolved)):
+                if unresolved[i].left == unresolved[j].left and unresolved[i].right == unresolved[j].right:
+                    logger.log(handle_specific_equation, f"Merging equation {unresolved[j]} into {unresolved[i]}")
+                    unresolved[i].prefixes = union(unresolved[i].prefixes, unresolved[j].prefixes)
+                    unresolved[j].prefixes.accepts = set()
+                elif unresolved[i].left == unresolved[j].right and unresolved[i].right == unresolved[j].left:
+                    logger.log(handle_specific_equation, f"Merging equation {unresolved[j]} into {unresolved[i]}")
+                    unresolved[i].prefixes = union(unresolved[i].prefixes, unresolved[j].prefixes)
+                    unresolved[j].prefixes.accepts = set()
     for i in range(len(unresolved) - 1, -1, -1):
         if len(unresolved[i].prefixes.accepts) == 0:
             logger.log(handle_specific_equation, f"Removing empty equation {unresolved[i]}")
