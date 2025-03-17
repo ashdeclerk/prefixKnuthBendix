@@ -581,6 +581,8 @@ def prune_prefixes(unresolved, rules, alph):
 
 def check_rule_lengths(max_rule_length, unresolved):
     # Checks for any rules that are too long
+    if max_rule_length == None:
+        return False
     for equality in unresolved:
         if len(equality.left) > max_rule_length:
             return True

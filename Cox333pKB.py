@@ -73,7 +73,6 @@ order_automaton = orderAutomata.regular_split_shortlex(mod3a0, {0: ['a', 'b', 'c
 # as the basis for your ordering, you can leave the next line alone.
 # An example of using a custom ordering function is given in BS12pKB.py.
 Cox333.ordering = orderAutomata.make_ordering(alph, order_automaton)
-Cox333.clean_first = False
 
 # Now we can actually call pKB! I haven't used the arguments `max_rule_number` 
 # or `max_rule_length` in this example, and `max_time` is frankly way larger
