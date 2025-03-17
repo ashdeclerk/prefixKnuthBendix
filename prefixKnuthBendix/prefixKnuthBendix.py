@@ -560,7 +560,12 @@ def combine_equations(unresolved):
             del unresolved[i]
     return True
 
-def prune_prefixes(unresolved, rules, alph):
+def prune_prefixes_naive(unresolved, rules, alph):
+    # This gives us huges FSAs when called, which means I've cut it from
+    # the default implementation of pKB. If you want to use it, pass it
+    # when you call pKB. You can also define your own function to prune prefixes,
+    # as I've done in the BS(1, 2) example file. 
+    logger.log(major_steps, f"Pruning prefixes in {len(unresolved)} unresolved equations.")
     if len(rules) == 0:
         return True
     squared_alph = []
@@ -603,7 +608,7 @@ def autostackableNormalForms(group):
         nf = intersection(complement(concatenation(concatenation(rule.prefixes, single_word_FSA(group.generators, rule.left)), ev)), nf)
     return nf
 
-def pKB(group, max_rule_number = 1000, max_rule_length = None, max_time = 600):
+def pKB(group, max_rule_number = 1000, max_rule_length = None, max_time = 600, prune_prefixes = lambda unresolved, rules, gens : None, boundary_reduce = lambda unresolved, rules, gens : None):
     # We'll assume that the ordering is stored in group.ordering. I trust the user, because the user is likely me at this point.
     # We should also check if there's partial progress on a rewriting system.
     # Initial step:
@@ -650,13 +655,13 @@ def pKB(group, max_rule_number = 1000, max_rule_length = None, max_time = 600):
             check_pre_pairs(pre_pairs, unresolved, group.generators, everything, rules)
         # Equality resolution
         logger.log(periodic_rule_display, f"Rules are {rules}")
-        combine_equations(unresolved)
-        rewrite_equations(unresolved, rules)
+        if len(unresolved) > 0:
+            prune_prefixes(unresolved, rules, group.generators)
+            boundary_reduce(unresolved, rules, group.generators)
+            combine_equations(unresolved)
+            rewrite_equations(unresolved, rules)
         logger.log(major_steps, f"Resolving {len(unresolved)} equations.")
         resolve_equations(unresolved, rules, group.ordering, int_pairs, ext_pairs, pre_pairs)
-        if len(unresolved) > 0:
-            logger.log(major_steps, f"Pruning prefixes in {len(unresolved)} unresolved equations.")
-            prune_prefixes(unresolved, rules, group.generators)
         # And now we check if we need to halt.
         if len(unresolved) == 0:
             if len(int_pairs) + len(ext_pairs) + len(pre_pairs) == 0: # i.e., every equality has been resolved, after checking that there are no critical pairs left to check
