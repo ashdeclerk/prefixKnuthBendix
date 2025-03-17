@@ -1,11 +1,5 @@
 # This is an example file for prefixKnuthBendix.
 # This file finds an autostackable structure for BS(1, 2).
-# The original point of including BS(1, 2) was to show how to make a custom
-# ordering, which `BS12pKB.py` does adequately. This is a more streamlined
-# version, which I've included in the repo to demonstrate using the
-# `piecewise_ordering` function from orderAutomata.
-# This version appears to be slightly faster than the custom one, though I know
-# not why. 
 
 from prefixKnuthBendix.prefixKnuthBendix import *
 from prefixKnuthBendix.FSA import FSA

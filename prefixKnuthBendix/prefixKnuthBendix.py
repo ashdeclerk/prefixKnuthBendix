@@ -279,7 +279,6 @@ class Equation:
         L_cross_A_star = product(self.prefixes, FSA.all_FSA(self.prefixes.alphabet))
         synch = intersection(L_cross_A_star, rewriter)
         rewritten_words = complement(projection(synch, [0]))
-        logger.log(13, f"synch was {synch}")
         if len(rewritten_words.accepts) > 0:
             new_prefixes = intersection(union(self.prefixes, projection(synch, [1])),
                                         complement(projection(rewriter, [0])))
