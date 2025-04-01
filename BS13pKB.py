@@ -50,7 +50,7 @@ queue_listener.start()
 atexit.register(queue_listener.stop)
 logger.addHandler(queue_handler)
 
-BS12 = Group({'a', 't', 'A', 'T'}, [[['a','A'],[]], [['A', 'a'], []], [['t', 'T'], []], [['T', 't'], []], [['t', 'a', 'T'], ['a', 'a', 'a']], [['t', 'A', 'T'], ['A', 'A', 'A']]])
+BS13 = Group({'a', 't', 'A', 'T'}, [[['a','A'],[]], [['A', 'a'], []], [['t', 'T'], []], [['T', 't'], []], [['t', 'a', 'T'], ['a', 'a', 'a']], [['t', 'A', 'T'], ['A', 'A', 'A']]])
 alph = {'a', 't', 'A', 'T'}
 
 
@@ -123,7 +123,7 @@ def ordering(u, v, L):
         return (nothing, everything, nothing)
     return pieces(u, v, L)
 
-BS12.ordering = ordering
+BS13.ordering = ordering
 
 def prune_prefixes(unresolved, rules, alph):
     # The naive way to prune prefixes gives us a lot of huge FSAs, which is
