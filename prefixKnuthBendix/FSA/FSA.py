@@ -19,7 +19,7 @@ class FSA:
     def __init__(self, states, accepts, alphabet, transitions):
         self.states = states
         self.accepts = copy.deepcopy(accepts)
-        self.alphabet = set(copy.deepcopy(alphabet))
+        self.alphabet = tuple(copy.deepcopy(alphabet))
         self.transitions = copy.deepcopy(transitions)
 
     def __repr__(self):
@@ -36,7 +36,7 @@ class FSA:
         out += "}"
         return out
 
-    def accepted(self, word):
+    def accepts_word(self, word):
         location = 0
         for letter in word:
             location = self.transitions[letter][location]
@@ -52,11 +52,12 @@ class FSA:
 
     def add_letter(self, letter):
         if letter not in self.alphabet:
-            self.alphabet.update({letter})
+            self.alphabet = self.alphabet + (letter,)
             self.transitions[letter] = [0] * self.states
 
     def remove_letter(self, letter):
         if letter in self.alphabet:
+            self.alphabet = tuple(l for l in self.alphabet if l != letter)
             self.alphabet.difference_update({letter})
             del self.transitions[letter]
 
