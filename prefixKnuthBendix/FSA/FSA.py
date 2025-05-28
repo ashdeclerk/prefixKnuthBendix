@@ -32,9 +32,22 @@ class FSA:
         out += f"Alphabet: {self.alphabet}\n"
         out += "Transitions: {\n"
         for letter in self.transitions:
-            out += f"\t {letter}: {self.transitions[letter]}\n"
+            out += f"    {letter}: {self.transitions[letter]}\n"
         out += "}"
         return out
+    
+    def __eq__(self, other):
+        if isinstance(other, FSA):
+            if other.states != self.states:
+                return False
+            if sorted(other.alphabet) != sorted(self.alphabet):
+                return False
+            if other.states != self.states:
+                return False
+            if other.transitions != self.transitions:
+                return False
+            return True
+        return False
 
     def accepts_word(self, word):
         location = 0
@@ -58,7 +71,6 @@ class FSA:
     def remove_letter(self, letter):
         if letter in self.alphabet:
             self.alphabet = tuple(l for l in self.alphabet if l != letter)
-            self.alphabet.difference_update({letter})
             del self.transitions[letter]
 
     def add_state(self):
@@ -75,7 +87,7 @@ class FSA:
                     if self.transitions[letter][i] > index:
                         self.transitions[letter][i] -= 1
 
-    def changeEdge(self, start, end, label):
+    def change_edge(self, start, end, label):
         self.transitions[label][start] = end
 
     def change_init(self, index):
