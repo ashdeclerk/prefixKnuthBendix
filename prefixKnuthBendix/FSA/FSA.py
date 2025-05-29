@@ -462,12 +462,9 @@ def determinize(nfa):
     accept_states = set()
     transitions = {}
     nonish_letters = []
-    for letter in alphabet:
-        if is_nonish(letter):
-            nonish_letters.append(letter)
-        else:
-            transitions[letter] = []
-    alphabet.difference_update(set(nonish_letters))
+    alphabet = tuple(let for let in alphabet if not is_nonish(let))
+    for let in alphabet:
+        transitions[let] = []
     starting_states = {0}
     potential_starting_states = {0}
     while len(potential_starting_states) > 0:
