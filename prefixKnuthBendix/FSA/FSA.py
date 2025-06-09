@@ -597,6 +597,9 @@ def intersection(fsa1, fsa2):
     return out
 
 def quotient(fsa1, fsa2):
+    # Note that there are two types of quotients here. This computes 
+    # {x | there exists y in L2 such that xy is in L1}.
+    # For {x | xy is in L1 for all y in L2} you want strict_quotient.
     if fsa1.alphabet != fsa2.alphabet:
         raise AlphabetError(fsa1.alphabet, fsa2.alphabet, "In quotient, " + str(fsa1) + " and " + str(fsa2) + " have different alphabets.")
     outStates = fsa1.states

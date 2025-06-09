@@ -25,8 +25,6 @@ f = FSA(3, {0, 1}, ('a', 'b', 'c'), {'a': [0, 0, 1], 'b': [0, 0, 1], 'c': [0, 2,
 g = FSA(7, {2, 3, 6}, ('a', 'b', 'c'), {'a': [3, 5, 3, 5, 6, 4, 3], 'b': [6, 2, 1, 1, 6, 5, 1], 'c': [5, 0, 2, 2, 3, 4, 4]})
 h = FSA(11, {0, 1, 5, 7, 9}, ('a', 'b', 'c'), {'a': [5, 6, 0, 4, 8, 6, 2, 8, 8, 4, 3], 'b': [1, 1, 4, 4, 1, 8, 10, 3, 5, 5, 4], 'c': [8, 5, 7, 7, 6, 7, 1, 7, 2, 2, 8]})
 
-# Non-random FSA to check a specific thing in BFS
-i = FSA(5, {3, 4}, ('a', 'b', 'c'), {'a': [1, 2, 2, 1, 2], 'b': [2, 4, 3, 2, 2], 'c': [3, 3, 4, 3, 3]})
 
 # Randomly generated short words to be used for testing
 u = ['a', 'a', 'b']
@@ -44,6 +42,8 @@ class TestBFS:
         assert BFS(h) == FSA(10, {0, 1, 2, 5}, ('a', 'b', 'c'), {'a': [1, 4, 4, 3, 6, 3, 0, 8, 9, 3], 'b': [2, 3, 2, 1, 7, 8, 9, 9, 9, 2], 'c': [3, 5, 1, 6, 2, 5, 5, 3, 5, 4]})
 
     def test_BFS_4(self):
+        # Non-random FSA to check a specific thing in BFS
+        i = FSA(5, {3, 4}, ('a', 'b', 'c'), {'a': [1, 2, 2, 1, 2], 'b': [2, 4, 3, 2, 2], 'c': [3, 3, 4, 3, 3]})
         assert BFS(i) == FSA(3, {2}, ('a', 'b', 'c'), {'a': [1, 1, 1], 'b': [1, 2, 1], 'c': [2, 2, 2]})
 
 class TestUnion:
@@ -111,3 +111,21 @@ class TestStar:
                                   {'a': [1, 4, 4, 3, 9, 12, 7, 12, 0, 9, 21, 12, 24, 4, 12, 29, 7, 12, 3, 7, 21, 34, 12, 12, 24, 21, 12, 12, 40, 24, 12, 40, 8, 29, 24, 21, 24, 40, 12, 40, 24, 24, 24, 49, 12, 24, 51, 52, 12, 18, 51, 34, 34],
                                    'b': [2, 5, 2, 1, 10, 13, 15, 17, 18, 20, 22, 15, 25, 5, 28, 30, 31, 17, 2, 33, 22, 35, 5, 37, 35, 38, 31, 39, 22, 10, 13, 30, 43, 44, 35, 38, 46, 38, 17, 38, 25, 46, 47, 18, 2, 50, 38, 30, 37, 18, 30, 35, 20],
                                    'c': [3, 6, 7, 8, 11, 14, 16, 16, 19, 11, 14, 23, 26, 27, 6, 27, 16, 23, 32, 6, 24, 26, 36, 16, 26, 23, 23, 16, 41, 42, 24, 36, 2, 27, 45, 41, 26, 41, 41, 23, 45, 26, 48, 3, 12, 48, 23, 27, 23, 19, 36, 45, 42]}))
+            
+class TestQuotient:
+    def test_quotient_1(self):
+        assert quotient(g, f) == FSA(1, {0}, ('a', 'b', 'c'), {'a': [0], 'b': [0], 'c': [0]})
+    
+    def test_quotient_2(self):
+        # It turns out the randomly generated FSAs are kinda useless for testing quotients.
+        # This example comes from Hopcroft and Ullman.
+        i = FSA(3, {1}, ('a', 'b'), {'a': [0, 1, 2], 'b': [1, 2, 2]})
+        j = FSA(4, {2}, ('a', 'b'), {'a': [3, 1, 3, 3], 'b': [1, 2, 3, 3]})
+        assert quotient(i, j) == FSA(1, set(), ('a', 'b'), {'a': [0], 'b': [0]})
+
+    def test_quotient_3(self):
+        # Sadly, Hopcroft and Ullman only have the one example, so here's an example
+        # that's more like what we see in pKB.
+        good_suffix = FSA(4, {2}, ('a', 'b'), {'a': [1, 3, 3, 3], 'b': [3, 2, 3, 3]})
+        all_prefixes = FSA(3, {0}, ('a', 'b'), {'a': [1, 2, 0], 'b': [0, 1, 2]})
+        assert quotient(all_prefixes, good_suffix) == BFS(FSA(3, {2}, ('a', 'b'), {'a': [1, 2, 0], 'b': [0, 1, 2]}))
