@@ -348,13 +348,13 @@ def check_int_pairs(int_pairs, unresolved, alphabet, rules):
                     del word1[-1]
                     del word2[-1]
                 old_prefixes = copy.deepcopy(prefixes)
-                p = []
-                while len(word1) > 0 and len(word2) > 0 and word1[0] == word2[0]:
-                    p.append(word1.pop(0))
-                    del word2[0]
-                if len(p) > 0:
-                    prefixes = concatenation(prefixes, single_word_FSA(prefixes.alphabet, p))
                 if len(prefixes.accepts) > 0 and word1 != word2:
+                    p = []
+                    while len(word1) > 0 and len(word2) > 0 and word1[0] == word2[0]:
+                        p.append(word1.pop(0))
+                        del word2[0]
+                    if len(p) > 0:
+                        prefixes = concatenation(prefixes, single_word_FSA(prefixes.alphabet, p))
                     new_equation = Equation(word1, word2, copy.deepcopy(prefixes))
                     logger.log(add_equation, f"Adding equation {new_equation}")
                     unresolved.append(new_equation)

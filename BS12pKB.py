@@ -142,6 +142,7 @@ def prune_prefixes(unresolved, rules, alph):
         partial_rewriter = union(partial_rewriter, rule_rewriter)
     bad_starts = (['T', 'a', 'a'], ['T', 'A', 'A'])
     for eqn in unresolved:
+        logger.log(12, f"fussing with equation {eqn}")
         if eqn.left[:3] in bad_starts or eqn.right[:3] in bad_starts:
             eqn.prefix_reduce(partial_rewriter)
     return True
