@@ -138,8 +138,8 @@ def prune_prefixes(unresolved, rules, alph):
     for let1 in alph:
         for let2 in alph:
             squared_alph.append((let1, let2))
-        squared_alph.append((let1, None))
-        squared_alph.append((None, let1))
+        squared_alph.append((let1, ''))
+        squared_alph.append(('', let1))
     partial_rewriter = complement(FSA.all_FSA(squared_alph))
     for rule in rules:
         words_dot_diag = singletons_diagonal_concatenate(rule.left, rule.right, alph)
@@ -176,5 +176,5 @@ def boundary_reduce(unresolved, rules, alph):
         unresolved.append(eqn)
 
 
-pKB(BS12, max_time = 2000, max_rule_length = 100, prune_prefixes = prune_prefixes, boundary_reduce = boundary_reduce)
+pKB(BS13, max_time = 2000, max_rule_length = 100, prune_prefixes = prune_prefixes, boundary_reduce = boundary_reduce)
 

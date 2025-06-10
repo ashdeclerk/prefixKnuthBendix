@@ -50,17 +50,17 @@ def union(fsa1, fsa2):
     union_cache[frozenfsa1][frozenfsa2] = fsa3
     return fsa3
 
-quotient_cache = {}
-def quotient(fsa1, fsa2):
+singleton_quotient_cache = {}
+def singleton_quotient(fsa1, word):
     frozenfsa1 = FSA.freeze(fsa1)
-    frozenfsa2 = FSA.freeze(fsa2)
-    if frozenfsa1 in quotient_cache:
-        if frozenfsa2 in quotient_cache[frozenfsa1]:
-            return quotient_cache[frozenfsa1][frozenfsa2]
-    if frozenfsa1 not in quotient_cache:
-        quotient_cache[frozenfsa1] = {}
-    fsa3 = FSA.quotient(fsa1, fsa2)
-    quotient_cache[frozenfsa1][frozenfsa2] = fsa3
+    frozen_word = tuple(word)
+    if frozenfsa1 in singleton_quotient_cache:
+        if frozen_word in singleton_quotient_cache[frozenfsa1]:
+            return singleton_quotient_cache[frozenfsa1][frozen_word]
+    if frozenfsa1 not in singleton_quotient_cache:
+        singleton_quotient_cache[frozenfsa1] = {}
+    fsa3 = FSA.singleton_quotient(fsa1, word)
+    singleton_quotient_cache[frozenfsa1][frozen_word] = fsa3
     return fsa3
 
 BFS_cache = {}
@@ -163,7 +163,7 @@ def singletons_diagonal_concatenate(word1, word2, alphabet):
 
 def clear_caches():
     intersection_cache = {}
-    quotient_cache = {}
+    singleton_quotient_cache = {}
     BFS_cache = {}
     diagonal_cache = {}
     complement_cache = {}
@@ -251,7 +251,7 @@ class Equation:
         # Returns None if neither can be reduced using rule
         for index in range(len(self.left) - len(rule.left) + 1):
             if self.left[index:index + len(rule.left)] == rule.left:
-                rewritable_prefixes = intersection(quotient(rule.prefixes, single_word_FSA(self.prefixes.alphabet, self.left[:index])), self.prefixes)
+                rewritable_prefixes = intersection(singleton_quotient(rule.prefixes, self.left[:index]), self.prefixes)
                 new_left = self.left[:index] + rule.right + self.left[index + len(rule.left):]
                 if len(rewritable_prefixes.accepts) > 0:
                     self.prefixes = BFS(intersection(self.prefixes, complement(rewritable_prefixes)))
@@ -259,7 +259,7 @@ class Equation:
                         return Equation(new_left, self.right, BFS(rewritable_prefixes))
         for index in range(len(self.right) - len(rule.left) + 1):
             if self.right[index:index + len(rule.left)] == rule.left:
-                rewritable_prefixes = intersection(quotient(rule.prefixes, single_word_FSA(self.prefixes.alphabet, self.right[:index])), self.prefixes)
+                rewritable_prefixes = intersection(singleton_quotient(rule.prefixes, self.right[:index]), self.prefixes)
                 new_right = self.right[:index] + rule.right + self.right[index + len(rule.left):]
                 if len(rewritable_prefixes.accepts) > 0:
                     self.prefixes = BFS(intersection(self.prefixes, complement(rewritable_prefixes)))
@@ -297,7 +297,7 @@ class Equation:
             if self.left[:index] == rule.left[-index:]:
                 w1 = rule.left[:-index]
                 w3 = self.left[index:]
-                rewritten_prefixes = intersection(rule.prefixes, quotient(self.prefixes, single_word_FSA(self.prefixes.alphabet, w1)))
+                rewritten_prefixes = intersection(rule.prefixes, singleton_quotient(self.prefixes, w1))
                 if len(rewritten_prefixes.accepts) > 0:
                     self.prefixes = BFS(intersection(self.prefixes, complement(concatenation(rule.prefixes, single_word_FSA(self.prefixes.alphabet, w1)))))
                     return Equation(rule.right + w3, w1 + self.right, BFS(rewritten_prefixes))
@@ -305,7 +305,7 @@ class Equation:
             if self.right[:index] == rule.left[-index:]:
                 w1 = rule.left[:-index]
                 w3 = self.right[index:]
-                rewritten_prefixes = intersection(rule.prefixes, quotient(self.prefixes, single_word_FSA(self.prefixes.alphabet, w1)))
+                rewritten_prefixes = intersection(rule.prefixes, singleton_quotient(self.prefixes, w1))
                 if len(rewritten_prefixes.accepts) > 0:
                     self.prefixes = BFS(intersection(self.prefixes, complement(concatenation(rule.prefixes, single_word_FSA(self.prefixes.alphabet, w1)))))
                     return Equation(rule.right + w3, w1 + self.right, BFS(rewritten_prefixes))
@@ -343,7 +343,7 @@ def check_int_pairs(int_pairs, unresolved, alphabet, rules):
                 word1 = copy.copy(pair[1].right)
                 word2 = copy.copy(pair[1].left)
                 word2[index:index + len(pair[0].left)] = pair[0].right
-                prefixes = intersection(pair[1].prefixes, quotient(pair[0].prefixes, single_word_FSA(alphabet, pair[1].left[0:index])))
+                prefixes = intersection(pair[1].prefixes, singleton_quotient(pair[0].prefixes, pair[1].left[0:index]))
                 while len(word1) > 0 and len(word2) > 0 and word1[-1] == word2[-1]:
                     del word1[-1]
                     del word2[-1]
@@ -428,7 +428,7 @@ def check_ext_pairs(ext_pairs, unresolved, alphabet, rules):
                 word2 = pair[0].right + pair[1].left[len(pair[0].left) - index:]
                 # Prefix language is (L2 / pair[0][1][:index]) \cap L1
                 prefixes = copy.deepcopy(pair[1].prefixes)
-                prefixes = quotient(prefixes, single_word_FSA(alphabet, pair[0].left[:index]))
+                prefixes = singleton_quotient(prefixes, pair[0].left[:index])
                 prefixes = intersection(prefixes, pair[0].prefixes)
                 prefixes = BFS(prefixes)
                 if word1 != word2 and len(prefixes.accepts) > 0:
@@ -571,8 +571,8 @@ def prune_prefixes_naive(unresolved, rules, alph):
     for let1 in alph:
         for let2 in alph:
             squared_alph.append((let1, let2))
-        squared_alph.append((let1, None))
-        squared_alph.append((None, let1))
+        squared_alph.append((let1, ''))
+        squared_alph.append(('', let1))
     partial_rewriter = complement(FSA.all_FSA(squared_alph))
     for rule in rules:
         words_dot_diag = singletons_diagonal_concatenate(rule.left, rule.right, alph)

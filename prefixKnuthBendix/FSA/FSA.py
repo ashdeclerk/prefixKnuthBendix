@@ -18,8 +18,8 @@ class FSA:
 
     def __init__(self, states, accepts, alphabet, transitions):
         self.states = states
-        self.accepts = copy.deepcopy(accepts)
-        self.alphabet = tuple(copy.deepcopy(alphabet))
+        self.accepts = list(accepts)
+        self.alphabet = tuple(alphabet)
         self.transitions = copy.deepcopy(transitions)
 
     def __repr__(self):
@@ -63,6 +63,11 @@ class FSA:
             location = self.transitions[letter][location]
         return location
 
+    def target_state_from_location(self, word, location):
+        for letter in word:
+            location = self.transitions[letter][location]
+        return location
+
     def add_letter(self, letter):
         if letter not in self.alphabet:
             self.alphabet = self.alphabet + (letter,)
@@ -90,17 +95,26 @@ class FSA:
     def change_edge(self, start, end, label):
         self.transitions[label][start] = end
 
+    def add_accepting_state(self, state):
+        if state in self.accepts:
+            return
+        self.accepts.append(state)
+    
+    def remove_accepting_state(self, state):
+        while state in self.accepts:
+            self.accepts.remove(state)
+
     def change_init(self, index):
         if index in self.accepts:
             if 0 in self.accepts:
                 pass
             else:
-                self.accepts.difference_update({index})
-                self.accepts.update({0})
+                self.remove_accepting_state(index)
+                self.add_accepting_state(0)
         else:
             if 0 in self.accepts:
-                self.accepts.difference_update({0})
-                self.accepts.update({index})
+                self.remove_accepting_state(0)
+                self.add_accepting_state(index)
         for letter in self.alphabet:
             self.transitions[letter][0], self.transitions[letter][index] = self.transitions[letter][index], self.transitions[letter][0]
             for state in range(0, self.states):
@@ -114,8 +128,8 @@ class FSA:
 class frozenFSA:
 
     states: int
-    accepts: frozenset
-    alphabet: frozenset
+    accepts: tuple
+    alphabet: tuple
     transitions: frozenset
 
 
@@ -124,7 +138,7 @@ def freeze(fsa):
     for key, item in fsa.transitions.items():
         transitions[key] = tuple(item)
     transitions = frozenset(transitions.items())
-    return frozenFSA(states = fsa.states, accepts = frozenset(fsa.accepts), alphabet = frozenset(fsa.alphabet), transitions = transitions)
+    return frozenFSA(states = fsa.states, accepts = tuple(fsa.accepts), alphabet = fsa.alphabet, transitions = transitions)
 
     
 def complement(fsa):
@@ -142,14 +156,12 @@ def product(fsa1, fsa2):
         accepts.update({(i + 1) * (fsa2.states + 1) - 1})
     for j in fsa2.accepts:
         accepts.update({(fsa1.states) * (fsa2.states + 1) + j})
-    arity1 = copy.deepcopy(fsa1.alphabet)
-    arity1 = arity1.pop()
+    arity1 = fsa1.alphabet[0]
     if type(arity1) == tuple:
         arity1 = len(arity1)
     else:
         arity1 = 1
-    arity2 = copy.deepcopy(fsa2.alphabet)
-    arity2 = arity2.pop()
+    arity2 = fsa2.alphabet[0]
     if type(arity2) == tuple:
         arity2 = len(arity2)
     else:
@@ -176,7 +188,7 @@ def product(fsa1, fsa2):
             list1 = list(let1)
         else:
             list1 = [let1]
-        list1.extend([None] * arity2)
+        list1.extend([''] * arity2)
         lettuple = tuple(list1)
         alphabet.update({lettuple})
         transitions[lettuple] = [states - 1] * states
@@ -185,7 +197,7 @@ def product(fsa1, fsa2):
                 transitions[lettuple][i * (fsa2.states + 1) + j] = (fsa1.transitions[let1][i] + 1) * (fsa2.states + 1) - 1
             transitions[lettuple][(i + 1) * (fsa2.states + 1) - 1] = (fsa1.transitions[let1][i] + 1) * (fsa2.states + 1) - 1
     for let2 in fsa2.alphabet:
-        list1 = [None] * arity1
+        list1 = [''] * arity1
         if type(let2) == tuple:
             list1.extend(let2)
         else:
@@ -213,7 +225,7 @@ def remove_padded_words(fsa):
     for let in out.alphabet:
         out.changeEdge(out.states, out.states, let)
         if type(let) == tuple:
-            if None in let:
+            if '' in let:
                 for state in range(out.states):
                     out.changeEdge(state, out.states, let)
     return out
@@ -362,7 +374,7 @@ class NFA:
         while epsilonTargets != locations:
             locations = epsilonTargets
             for state in locations:
-                epsilonTargets.update(self.transitions[None][state])
+                epsilonTargets.update(self.transitions[''][state])
         for letter in word:
             newLocations = set()
             newLocationsPreUpdate = set()
@@ -371,7 +383,7 @@ class NFA:
             while newLocations != newLocationsPreUpdate:
                 newLocationsPreUpdate = newLocations
                 for state in newLocationsPreUpdate:
-                    newLocations.update(self.transitions[None][state])
+                    newLocations.update(self.transitions[''][state])
             locations = newLocations
         for state in locations:
             if self.accepts.count(state) > 0:
@@ -394,7 +406,7 @@ class NFA:
         self.states += 1
         for letter in self.alphabet:
             self.transitions[letter].append(set())
-        self.transitions[None].append(set())
+        self.transitions[''].append(set())
 
     def remove_state(self, index):
         if index <= self.states:
@@ -415,7 +427,7 @@ class NFA:
                         newStates.update(location - 1)
                     self.transitions[letter][index].intersection_update(set(range(0, index)))
                     self.transitions[letter][index].union_update(newStates)
-            del self.transitions[None][index]
+            del self.transitions[''][index]
             for i in range(0, self.states):
                 oldStates = self.transitions[letter][index].intersection(set(range(index + 1, self.states + 1)))
                 newStates = set()
@@ -433,10 +445,10 @@ class NFA:
 
 def nondeterminize(fsa):
     states = fsa.states
-    accepts = fsa.accepts
+    accepts = set(fsa.accepts)
     alphabet = fsa.alphabet
     transitions = {}
-    transitions[None] = [set()] * states
+    transitions[''] = [set()] * states
     for letter in alphabet:
         transitions[letter] = [set()] * states
         for state in range(0, states):
@@ -449,12 +461,12 @@ def determinize(nfa):
         # If I were to rewrite this module from scratch, I would track
         # the arity of automata. And separate synchronous from asynchronous
         # for arity > 1, but that's a separate issue.
-        if letter == None:
+        if letter == '':
             return True
         if type(letter) != tuple:
             return False
         for entry in letter:
-            if entry != None:
+            if entry != '':
                 return False
         return True
     
@@ -520,87 +532,84 @@ def determinize(nfa):
     return out
 
 def star(fsa):
-    out = nondeterminize(fsa)
-    out.accepts.update({0})
+    out = copy.deepcopy(fsa)
+    out.add_accepting_state(0)
+    out = nondeterminize(out)
     for letter in out.alphabet:
         for state in fsa.accepts:
             out.transitions[letter][state].update(out.transitions[letter][0])
     out = determinize(out)
     return out
 
-def union(fsa1, fsa2):
-    if fsa1.states == 1:
-        if len(fsa1.accepts) == 1:
-            return fsa1
-        if len(fsa1.accepts) == 0:
-            return fsa2
-    if fsa2.states == 1:
-        if len(fsa2.accepts) == 1:
-            return fsa2
-        if len(fsa2.accepts) == 0:
-            return fsa1
-    if fsa1.alphabet != fsa2.alphabet:
-        raise AlphabetError(fsa1.alphabet, fsa2.alphabet, "In union, " + str(fsa1) + " and " + str(fsa2) + " have different alphabets.")
-    nfa1 = nondeterminize(fsa1)
-    nfa2 = nondeterminize(fsa2)
-    for state in range(0, nfa2.states + 1):
-        nfa1.add_state()
-    if 0 in fsa1.accepts:
-        nfa1.accepts.update({fsa1.states + fsa2.states})
-    elif 0 in fsa2.accepts:
-        nfa1.accepts.update({0})
-    for state in nfa2.accepts:
-        nfa1.accepts.update({state + fsa1.states})
-    for letter in nfa1.alphabet:
-        for target in nfa2.transitions[letter][0]:
-            nfa1.transitions[letter][0].update([target + fsa1.states])
-        for initial in range(0, nfa2.states):
-            for target in nfa2.transitions[letter][initial]:
-                nfa1.transitions[letter][initial + fsa1.states].update([target + fsa1.states])
-        target = fsa1.transitions[letter][0]
-        if target != 0:
-            nfa1.transitions[letter][nfa1.states - 1].update([fsa1.transitions[letter][0]])
-        else:
-            nfa1.transitions[letter][nfa1.states - 1].update([nfa1.states - 1])
-        for source in range(0, fsa1.states):
-            if 0 in nfa1.transitions[letter][source]:
-                nfa1.transitions[letter][source].symmetric_difference_update({0, nfa1.states - 1})
-    out = BFS(determinize(nfa1))
-    return out
-
-def intersection(fsa1, fsa2):
-    if fsa1.states == 1:
-        if len(fsa1.accepts) == 1:
-            return fsa2
-        if len(fsa1.accepts) == 0:
-            return fsa1
-    if fsa2.states == 1:
-        if len(fsa2.accepts) == 1:
-            return fsa1
-        if len(fsa2.accepts) == 0:
-            return fsa2
-    if fsa1.alphabet != fsa2.alphabet:
-        raise AlphabetError(fsa1.alphabet, fsa2.alphabet, "In intersection, " + str(fsa1) + " and " + str(fsa2) + " have different alphabets.")
-    states = fsa1.states * fsa2.states
-    accepts = set()
-    alphabet = fsa1.alphabet
+def union(f: FSA, g: FSA):
+    # Rewriting this to avoid NFAs.
+    if sorted(f.alphabet) != sorted(g.alphabet):
+        raise AlphabetError(f.alphabet, g.alphabet, f"In union, {f} and {g} have different alphabets.")
+    processed_states = 0
+    states = 1
+    state_number_to_state_pairs = [(0, 0)]
+    state_pairs_to_state_number = {(0, 0): 0}
     transitions = {}
-    for i in fsa1.accepts:
-        for j in fsa2.accepts:
-            accepts.update({i * fsa2.states + j})
-    for letter in alphabet:
-        transitions[letter] = [0] * states
-        for i in range(0, fsa1.states):
-            for j in range(0, fsa2.states):
-                transitions[letter][i * fsa2.states + j] = fsa1.transitions[letter][i] * fsa2.states + fsa2.transitions[letter][j]
-    out = BFS(FSA(states, accepts, alphabet, transitions))
-    return out
+    alph = sorted(f.alphabet)
+    accepting_states = []
+    if 0 in f.accepts or 0 in g.accepts:
+        accepting_states.append(0)
+    for let in alph:
+        transitions[let] = []
+    while processed_states < states:
+        state_to_process = state_number_to_state_pairs[processed_states]
+        for let in alph:
+            next_state = (f.transitions[let][state_to_process[0]], g.transitions[let][state_to_process[1]])
+            if next_state in state_pairs_to_state_number:
+                next_state_number = state_pairs_to_state_number[next_state]
+            else:
+                state_number_to_state_pairs.append(next_state)
+                state_pairs_to_state_number[next_state] = states
+                next_state_number = states
+                if next_state[0] in f.accepts or next_state[1] in g.accepts:
+                    accepting_states.append(next_state_number)
+                states += 1
+            transitions[let].append(next_state_number)
+        processed_states += 1
+    return BFS(FSA(states, accepting_states, alph, transitions))
+
+def intersection(f, g):
+    # Rewriting this to avoid NFAs.
+    if sorted(f.alphabet) != sorted(g.alphabet):
+        raise AlphabetError(f.alphabet, g.alphabet, f"In intersection, {f} and {g} have different alphabets.")
+    processed_states = 0
+    states = 1
+    state_number_to_state_pairs = [(0, 0)]
+    state_pairs_to_state_number = {(0, 0): 0}
+    transitions = {}
+    alph = sorted(f.alphabet)
+    accepting_states = []
+    if 0 in f.accepts and 0 in g.accepts:
+        accepting_states.append(0)
+    for let in alph:
+        transitions[let] = []
+    while processed_states < states:
+        state_to_process = state_number_to_state_pairs[processed_states]
+        for let in alph:
+            next_state = (f.transitions[let][state_to_process[0]], g.transitions[let][state_to_process[1]])
+            if next_state in state_pairs_to_state_number:
+                next_state_number = state_pairs_to_state_number[next_state]
+            else:
+                state_number_to_state_pairs.append(next_state)
+                state_pairs_to_state_number[next_state] = states
+                next_state_number = states
+                if next_state[0] in f.accepts and next_state[1] in g.accepts:
+                    accepting_states.append(next_state_number)
+                states += 1
+            transitions[let].append(next_state_number)
+        processed_states += 1
+    return BFS(FSA(states, accepting_states, alph, transitions))
 
 def quotient(fsa1, fsa2):
     # Note that there are two types of quotients here. This computes 
     # {x | there exists y in L2 such that xy is in L1}.
     # For {x | xy is in L1 for all y in L2} you want strict_quotient.
-    if fsa1.alphabet != fsa2.alphabet:
+    if sorted(fsa1.alphabet) != sorted(fsa2.alphabet):
         raise AlphabetError(fsa1.alphabet, fsa2.alphabet, "In quotient, " + str(fsa1) + " and " + str(fsa2) + " have different alphabets.")
     outStates = fsa1.states
     outAccepts = set()
@@ -616,7 +625,7 @@ def quotient(fsa1, fsa2):
     return BFS(FSA(outStates, outAccepts, outAlphabet, outTransitions))
 
 def strict_quotient(fsa1, fsa2):
-    if fsa1.alphabet != fsa2.alphabet:
+    if sorted(fsa1.alphabet) != sorted(fsa2.alphabet):
         raise AlphabetError(fsa1.alphabet, fsa2.alphabet, "In strict_quotient, " + str(fsa1) + " and " + str(fsa2) + " have different alphabets.")
     outStates = fsa1.states
     outAccepts = set()
@@ -632,28 +641,56 @@ def strict_quotient(fsa1, fsa2):
                 outAccepts.update({state})
     return BFS(FSA(outStates, outAccepts, outAlphabet, outTransitions))
 
-def concatenation(fsa1, fsa2):
-    if fsa2.states == 1:
-        if len(fsa2.accepts) == 0:
-            return fsa2
-    if fsa1.alphabet != fsa2.alphabet:
-        raise AlphabetError(fsa1.alphabet, fsa2.alphabet, "In concatenation, " + str(fsa1) + " and " + str(fsa2) + " have different alphabets.")
-    nfa1 = nondeterminize(fsa1)
-    for i in range(fsa2.states):
-        nfa1.add_state()
-    for state in nfa1.accepts:
-        for let in fsa1.alphabet:
-            nfa1.transitions[let][state].update({fsa2.transitions[let][0] + fsa1.states})
-    for state in fsa2.accepts:
-        nfa1.accepts.update({state + fsa1.states})
-    if 0 not in fsa2.accepts:
-        for state in fsa1.accepts:
-            nfa1.accepts.difference_update({state})
-    for state in range(fsa2.states):
-        for let in fsa1.alphabet:
-            nfa1.transitions[let][state + fsa1.states].update([fsa2.transitions[let][state] + fsa1.states])
-    out = determinize(nfa1)
-    return out
+def singleton_quotient(fsa, word):
+    # I realized that doing a full quotient is inefficient.
+    out_states = fsa.states
+    out_accepts = []
+    out_alphabet = fsa.alphabet
+    out_transitions = fsa.transitions
+    for state in range(0, fsa.states):
+        if fsa.target_state_from_location(word, state) in fsa.accepts:
+            out_accepts.append(state)
+    return BFS(FSA(out_states, out_accepts, out_alphabet, out_transitions))
+
+def concatenation(f, g):
+    if sorted(f.alphabet) != sorted(g.alphabet):
+        raise AlphabetError(f.alphabet, g.alphabet, f"In concatenation, {f} and {g} have different alphabets.")
+    processed_states = 0
+    states = 1
+    accepting_states = []
+    if 0 in f.accepts:
+        starting_pair = (0, (0,))
+        if 0 in g.accepts:
+            accepting_states.append(0)
+    else:
+        starting_pair = (0, ())
+    state_number_to_state_pairs = [starting_pair]
+    state_pairs_to_state_number = {starting_pair: 0}
+    transitions = {}
+    alph = sorted(f.alphabet)
+    for let in alph:
+        transitions[let] = []
+    while processed_states < states:
+        state_to_process = state_number_to_state_pairs[processed_states]
+        for let in alph:
+            next_f_state = f.transitions[let][state_to_process[0]]
+            next_g_states = list(set((g.transitions[let][g_state] for g_state in state_to_process[1])))
+            if next_f_state in f.accepts and 0 not in next_g_states:
+                next_g_states.append(0)
+            next_state = (next_f_state, tuple(sorted(next_g_states)))
+            if next_state in state_pairs_to_state_number:
+                transitions[let].append(state_pairs_to_state_number[next_state])
+            else:
+                state_number_to_state_pairs.append(next_state)
+                state_pairs_to_state_number[next_state] = states
+                transitions[let].append(states)
+                if any((s in g.accepts for s in next_state[1])):
+                    accepting_states.append(states)
+                states += 1
+        processed_states += 1
+    return BFS(FSA(states, accepting_states, alph, transitions))
+
+    
 
 def diagonal(alph):
     states = 2
@@ -662,8 +699,8 @@ def diagonal(alph):
     for let1 in alph:
         for let2 in alph:
             alphabet.update({(let1, let2)})
-        alphabet.update({(let1, None)})
-        alphabet.update({(None, let1)})
+        alphabet.update({(let1, '')})
+        alphabet.update({('', let1)})
     transitions = {}
     for let in alphabet:
         transitions[let] = [1, 1]
@@ -750,7 +787,7 @@ def NFA_from_grammar(grammar):
     transitions = {}
     for let in grammar.terminals:
         transitions[let] = {}
-    transitions[None] = {}
+    transitions[''] = {}
     for let in transitions.keys():
         for state in range(states):
             transitions[let][state] = set()
@@ -779,7 +816,7 @@ def NFA_from_grammar(grammar):
         elif len(rule[1]) == 2:
             transitions[rule[1][0]][grammar.variables.index(rule[0])].update({grammar.variables.index(rule[1][-1])})
         elif len(rule[1]) == 1:
-            transitions[None][grammar.variables.index(rule[0])].update({grammar.variables.index(rule[1][-1])})
+            transitions[''][grammar.variables.index(rule[0])].update({grammar.variables.index(rule[1][-1])})
     return NFA(states, accepts, grammar.terminals, transitions)
 
 def reverse(nfa):
@@ -787,7 +824,7 @@ def reverse(nfa):
     transitions = {}
     for let in nfa.alphabet:
         transitions[let] = {}
-    transitions[None] = {}
+    transitions[''] = {}
     for let in transitions.keys():
         for state in range(states):
             transitions[let][state] = set()
@@ -795,7 +832,7 @@ def reverse(nfa):
             for state2 in nfa.transitions[let][state]:
                 transitions[let][state2 + 1].update({state + 1})
     for state in nfa.accepts:
-        transitions[None][0].update({state + 1})
+        transitions[''][0].update({state + 1})
     return NFA(states, [1], nfa.alphabet, transitions)
 
 
@@ -842,10 +879,10 @@ def sync_singleton_concatenate(fsa, word):
             post0.changeEdge(post0.states, post0.states, let)
         post1 = copy.deepcopy(post0)
         for let in fsa.alphabet:
-            if let[1] != None:
+            if let[1] != '':
                 for state2 in range(post0.states):
                     post0.changeEdge(state2, post0.states, let)
-            if let[0] != None:
+            if let[0] != '':
                 for state2 in range(post1.states):
                     post1.changeEdge(state2, post1.states, let)
         post0 = projection(post0, 0)
@@ -862,7 +899,7 @@ def singletons_diagonal_concatenate(word1, word2, alph):
     ordered_alph = list(alph)
     if len(ordered_alph) == 1:
         a = ordered_alph[0]
-        squared_alph = [(a, a), (a, None), (None, a)]
+        squared_alph = [(a, a), (a, ''), ('', a)]
         minlen = min(len(word1), len(word2))
         maxlen = max(len(word1), len(word2))
         states = maxlen + 1
@@ -875,10 +912,10 @@ def singletons_diagonal_concatenate(word1, word2, alph):
         transitions[(a, a)][min(len(word1), len(word2))] = min(len(word1), len(word2))
         if len(word1) > len(word2):
             for i in range(maxlen - minlen):
-                transitions[(a, None)][minlen + i] = minlen + i + 1
+                transitions[(a, '')][minlen + i] = minlen + i + 1
         elif len(word2) > len(word1):
             for i in range(maxlen - minlen):
-                transitions[(None, a)][minlen + i] = minlen + i + 1
+                transitions[('', a)][minlen + i] = minlen + i + 1
         return FSA(states, accepts, squared_alph, transitions)
     squared_alph = []
     transitions = {}
@@ -893,10 +930,10 @@ def singletons_diagonal_concatenate(word1, word2, alph):
         for let2 in alph:
             transitions[(let1, let2)] = [states - 1] * states
             squared_alph.append((let1, let2))
-        transitions[(let1, None)] = [states - 1] * states
-        squared_alph.append((let1, None))
-        transitions[(None, let1)] = [states - 1] * states
-        squared_alph.append((None, let1))
+        transitions[(let1, '')] = [states - 1] * states
+        squared_alph.append((let1, ''))
+        transitions[('', let1)] = [states - 1] * states
+        squared_alph.append(('', let1))
     for index in range(minlen - 1):
         transitions[(word1[index], word2[index])][index] = index + 1
     # At this point we are in the memory lattice.
@@ -935,7 +972,7 @@ def singletons_diagonal_concatenate(word1, word2, alph):
             for state_index in range(next_layer_start - layer_start):
                 current_state = state_index + layer_start
                 oldest_letter = ordered_alph[state_index % len(alph)]
-                transitions[(oldest_letter, None)][current_state] = next_layer_start + state_index // len(alph)
+                transitions[(oldest_letter, '')][current_state] = next_layer_start + state_index // len(alph)
             layer_start = next_layer_start
             next_layer_start = next_layer_start + len(alph) ** (diff - layer_index - 1)
     if len(word2) > len(word1):
@@ -950,7 +987,7 @@ def singletons_diagonal_concatenate(word1, word2, alph):
             for state_index in range(next_layer_start - layer_start):
                 current_state = state_index + layer_start
                 oldest_letter = ordered_alph[state_index % len(alph)]
-                transitions[(None, oldest_letter)][current_state] = next_layer_start + state_index // len(alph)
+                transitions[('', oldest_letter)][current_state] = next_layer_start + state_index // len(alph)
             layer_start = next_layer_start
             next_layer_start = next_layer_start + len(alph) ** (diff - layer_index - 1)
     if len(word1) == len(word2):

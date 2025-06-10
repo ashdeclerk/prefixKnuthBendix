@@ -37,8 +37,8 @@ def short(alphabet):
     for let in alphabet:
         for let2 in alphabet:
             alph.update({(let, let2)})
-        alph.update({(None, let)})
-        alph.update({(let, None)})
+        alph.update({('', let)})
+        alph.update({(let, '')})
     states = 3
     # State 0 is the "so far neither u nor v have terminated" state, and is not accepting
     # State 1 is the "v has terminated but u has not terminated" state, and is accepting
@@ -49,8 +49,8 @@ def short(alphabet):
     for let in alphabet:
         for let2 in alphabet:
             transitions[(let, let2)][0] = 0
-        transitions[(let, None)][0] = 1
-        transitions[(let, None)][1] = 1
+        transitions[(let, '')][0] = 1
+        transitions[(let, '')][1] = 1
     accepts = {1}
     return FSA.FSA(states, accepts, alph, transitions)
 
@@ -60,8 +60,8 @@ def short_tie(alphabet):
     for let in alphabet:
         for let2 in alphabet:
             alph.update({(let, let2)})
-        alph.update({(None, let)})
-        alph.update({(let, None)})
+        alph.update({('', let)})
+        alph.update({(let, '')})
     states = 2
     # State 0 is the "so far neither u nor v have terminated" state, and is accepting
     # State 2 is the Fail state, and is not accepting
@@ -83,8 +83,8 @@ def shortlex(alphabet):
     for let in alphabet:
         for let2 in alphabet:
             alph.update({(let, let2)})
-        alph.update({(None, let)})
-        alph.update({(let, None)})
+        alph.update({('', let)})
+        alph.update({(let, '')})
     states = 5
     # State 0 is the "so far u and v are identical state", and is not accepting
     # State 1 is the "u is lexicographically smaller than v but neither has ended" state, and is not accepting
@@ -104,32 +104,32 @@ def shortlex(alphabet):
         for j in range(0, i):
             transitions[(alphabet[i], alphabet[j])][0] = 2
             transitions[(alphabet[j], alphabet[i])][0] = 1
-    # on (a, None) we move to 3
-    # and on (None, a) we move to 4, which is default
+    # on (a, '') we move to 3
+    # and on ('', a) we move to 4, which is default
     for let in alphabet:
-        transitions[(let, None)][0] = 3
+        transitions[(let, '')][0] = 3
     # State 1: on (a, b) we stay at 1
     for let in alphabet:
         for let2 in alphabet:
             transitions[(let, let2)][1] = 1
-    # on (a, None) we move to 3
-    # and on (None, a) we move to 4, which is default
+    # on (a, '') we move to 3
+    # and on ('', a) we move to 4, which is default
     for let in alphabet:
-        transitions[(let, None)][1] = 3
+        transitions[(let, '')][1] = 3
     # State 2: on (a, b) we stay at 2
     for let in alphabet:
         for let2 in alphabet:
             transitions[(let, let2)][2] = 2
-    # on (a, None) we move to 3
-    # and on (None, a) we move to 4, which is default
+    # on (a, '') we move to 3
+    # and on ('', a) we move to 4, which is default
     for let in alphabet:
-        transitions[(let, None)][2] = 3
+        transitions[(let, '')][2] = 3
     # State 3: on (a, b) we move to 4 since v has a gap
     # (but that's the default)
-    # likewise for (None, a)
-    # but for (a, None) we stay at 3
+    # likewise for ('', a)
+    # but for (a, '') we stay at 3
     for let in alphabet:
-        transitions[(let, None)][3] = 3
+        transitions[(let, '')][3] = 3
     accepts = {2, 3}
     return FSA.FSA(states, accepts, alph, transitions)
 
@@ -152,17 +152,17 @@ def regular_split_shortlex(fsa, perms):
     for let in fsa.alphabet:
         for let2 in fsa.alphabet:
             alph.update({(let, let2)})
-        alph.update({(None, let)})
-        alph.update({(let, None)})
+        alph.update({('', let)})
+        alph.update({(let, '')})
     # And set up the nightmare of a transition function.
     transitions = {}
     for let in alph:
         transitions[let] = [states - 1] * states
     for let in fsa.alphabet:
         # Deal with slex state transitions
-        transitions[(let, None)][states - 4] = states - 2
-        transitions[(let, None)][states - 3] = states - 2
-        transitions[(let, None)][states - 2] = states - 2
+        transitions[(let, '')][states - 4] = states - 2
+        transitions[(let, '')][states - 3] = states - 2
+        transitions[(let, '')][states - 2] = states - 2
         for let2 in fsa.alphabet:
             transitions[(let, let2)][states - 4] = states - 4
             transitions[(let, let2)][states - 3] = states - 3
@@ -171,7 +171,7 @@ def regular_split_shortlex(fsa, perms):
             # Deal with original fsa transitions
             transitions[(let, let)][oldState] = fsa.transitions[let][oldState]
             # And length-based transitions for slex
-            transitions[(let, None)][oldState] = states - 2
+            transitions[(let, '')][oldState] = states - 2
         # And finally, deal with the perm-based transitions for slex
         for i in range(1, len(fsa.alphabet)):
             for j in range(0, i): # j is strictly smaller than i
@@ -191,8 +191,8 @@ def regsplit_shortlex_from_union(defaultOrd, automata):
     for let in defaultOrd:
         for let2 in defaultOrd:
             alph.update({(let, let2)})
-        alph.update({(None, let)})
-        alph.update({(let, None)})
+        alph.update({('', let)})
+        alph.update({(let, '')})
     out = FSA.empty_FSA(alph)
     unclaimedPrefixes = FSA.all_FSA(alph)
     # What we need to do is union with each fsa accepting all (paw, pbw) such that a < b after L, p is in L, and w is any word
@@ -226,8 +226,8 @@ def short_reverse_lex(alphabet):
     for let in alphabet:
         for let2 in alphabet:
             alph.update({(let, let2)})
-        alph.update({(None, let)})
-        alph.update({(let, None)})
+        alph.update({('', let)})
+        alph.update({(let, '')})
     states = 5
     # State 0 is the "so far u and v are identical" state
     # State 1 is the "the most recent different letter was smaller for u, and neither word has ended" state
@@ -242,10 +242,10 @@ def short_reverse_lex(alphabet):
         transitions[(let, let)][0] = 0
         transitions[(let, let)][1] = 1
         transitions[(let, let)][2] = 2
-        transitions[(let, None)][0] = 3
-        transitions[(let, None)][1] = 3
-        transitions[(let, None)][2] = 3
-        transitions[(let, None)][3] = 3
+        transitions[(let, '')][0] = 3
+        transitions[(let, '')][1] = 3
+        transitions[(let, '')][2] = 3
+        transitions[(let, '')][3] = 3
     # Deal with (a, b)
     for i in range(1, len(alphabet)):
         for j in range(0, i):
@@ -269,8 +269,8 @@ def async_ordered_square_automaton(fsa, ordering):
     for let1 in fsa.alphabet:
         for let2 in fsa.alphabet:
             alph.update({(let1, let2)})
-        alph.update({(let1, None)})
-        alph.update({(None, let1)})
+        alph.update({(let1, '')})
+        alph.update({('', let1)})
     # We essentially need to track location in fsa for both u and v.
     # Technically we should probably track padding as well, but I'd prefer to do that as an intersect with a padding problem-detector.
     # So, without tracking padding, we need to have fsa.states ** 2 states
@@ -289,21 +289,21 @@ def async_ordered_square_automaton(fsa, ordering):
             for let1 in fsa.alphabet:
                 for let2 in fsa.alphabet:
                     transitions[(let1, let2)][fsa.states * i + j] = fsa.states * fsa.transitions[let1][i] + fsa.transitions[let2][j]
-                transitions[(let1, None)][fsa.states * i + j] = fsa.states * fsa.transitions[let1][i] + j
-                transitions[(None, let1)][fsa.states * i + j] = fsa.states * i + fsa.transitions[let1][j]
+                transitions[(let1, '')][fsa.states * i + j] = fsa.states * fsa.transitions[let1][i] + j
+                transitions[('', let1)][fsa.states * i + j] = fsa.states * i + fsa.transitions[let1][j]
     return FSA.FSA(states, accepts, alph, transitions)
 
 def padding_problem_detector(alphabet):
     # TODO: Test
-    # This function takes an alphabet and returns an FSA that accepts exactly the pairs of words over alphabet \cup None with None showing up only at the end of each word.
+    # This function takes an alphabet and returns an FSA that accepts exactly the pairs of words over alphabet \cup {''} with '' showing up only at the end of each word.
     # i.e., it accepts well-padded pairs.
     # I'm using this same alphabet everywhere. Perhaps we should spin it into its own function.
     alph = set()
     for let1 in alphabet:
         for let2 in alphabet:
             alph.update({(let1, let2)})
-        alph.update({(let1, None)})
-        alph.update({(None, let1)})
+        alph.update({(let1, '')})
+        alph.update({('', let1)})
     # We only need 4 states: "neither word has ended", "the first word has ended", "the second word has ended", and "fail"
     states = 4
     accepts = {0, 1, 2}
@@ -311,14 +311,14 @@ def padding_problem_detector(alphabet):
     for let in alph:
         transitions[let] = [0] * 4
     for let1 in alphabet:
-        transitions[(let1, None)][0] = 2
-        transitions[(let1, None)][1] = 3
-        transitions[(let1, None)][2] = 2
-        transitions[(let1, None)][3] = 3
-        transitions[(None, let1)][0] = 1
-        transitions[(None, let1)][1] = 1
-        transitions[(None, let1)][2] = 3
-        transitions[(None, let1)][3] = 3
+        transitions[(let1, '')][0] = 2
+        transitions[(let1, '')][1] = 3
+        transitions[(let1, '')][2] = 2
+        transitions[(let1, '')][3] = 3
+        transitions[('', let1)][0] = 1
+        transitions[('', let1)][1] = 1
+        transitions[('', let1)][2] = 3
+        transitions[('', let1)][3] = 3
     return FSA.FSA(states, accepts, alph, transitions)
 
 def ordered_square_automaton(fsa, ordering):
@@ -329,14 +329,14 @@ def ordered_square_automaton(fsa, ordering):
 
 def length_problem_detector(alphabet, length):
     # TODO: Test
-    # This function takes an alphabet and length and returns an FSA that accepts exactly the pairs of words over alphabet \cup None with at most length None's at the end of either word.
+    # This function takes an alphabet and length and returns an FSA that accepts exactly the pairs of words over alphabet \cup {''} with at most length ''s at the end of either word.
     # i.e., it prevents one word from being too much longer than the other.
     alph = set()
     for let1 in alphabet:
         for let2 in alphabet:
             alph.update({(let1, let2)})
-        alph.update({(let1, None)})
-        alph.update({(None, let1)})
+        alph.update({(let1, '')})
+        alph.update({('', let1)})
     # We need length + 2 states, with all but the last being accepts
     states = length + 2
     accepts = set(range(length + 1))
@@ -346,8 +346,8 @@ def length_problem_detector(alphabet, length):
         transitions[let][states - 1] = states - 1
     for let1 in alphabet:
         for i in range(states - 1):
-            transitions[(let1, None)][i] = i + 1
-            transitions[(None, let1)][i] = i + 1
+            transitions[(let1, '')][i] = i + 1
+            transitions[('', let1)][i] = i + 1
     return FSA.intersection(padding_problem_detector(alphabet), FSA.FSA(states, accepts, alph, transitions))
 
 # A few useful functions for rpo (and potentially other FSAs that attempt to emulate a stack automaton).
@@ -413,8 +413,8 @@ def leftrpo(ordering, length):
     for let1 in alphabet:
         for let2 in alphabet:
             alph.update({(let1, let2)})
-        alph.update({(let1, None)})
-        alph.update({(None, let1)})
+        alph.update({(let1, '')})
+        alph.update({('', let1)})
     states = 1 + 2 * (base ** (length + 1) - 1) // (base - 1)
     trueAccepts = set()
     tieAccepts = {0}
@@ -430,8 +430,8 @@ def leftrpo(ordering, length):
                 transitions[(let1, let2)][0] = 2 * (1 + assignment[let1]) + 1
             else:
                 transitions[(let1, let2)][0] = 2 * (1 + assignment[let2]) + 2
-        transitions[(let1, None)][0] = 2 * (1 + assignment[let1]) + 1
-        transitions[(None, let1)][0] = 2 * (1 + assignment[let1]) + 2
+        transitions[(let1, '')][0] = 2 * (1 + assignment[let1]) + 1
+        transitions[('', let1)][0] = 2 * (1 + assignment[let1]) + 2
     for i in range(0, (base ** (length + 1) - 1) // (base - 1)):
         trueAccepts.update({2 * i + 1})
         # And now, the transition function
@@ -481,29 +481,29 @@ def leftrpo(ordering, length):
                     else:
                         # Right is still ahead
                         transitions[(let1, let2)][2 * i + 2] = 2 * stack + 2
-            # And, of course, we have to do basically the same thing with None
+            # And, of course, we have to do basically the same thing with ''
             stack = i
             stack = stack_push(i, base, assignment[let1], length)
-            transitions[(let1, None)][2 * i + 1] = 2 * stack + 1
-            transitions[(None, let1)][2 * i + 2] = 2 * stack + 2
+            transitions[(let1, '')][2 * i + 1] = 2 * stack + 1
+            transitions[('', let1)][2 * i + 2] = 2 * stack + 2
             stack = i
             current_length = length
             while current_length > 0 and stack_last(stack, base, current_length) < assignment[let1]:
                 stack_pop(stack, base, current_length)
                 current_length -= 1
             if current_length == 0:
-                transitions[(None, let1)][2 * i + 1] = 2 * (1 + assignment[let1]) + 2
-                transitions[(let1, None)][2 * i + 2] = 2 * (1 + assignment[let1]) + 1
+                transitions[('', let1)][2 * i + 1] = 2 * (1 + assignment[let1]) + 2
+                transitions[(let1, '')][2 * i + 2] = 2 * (1 + assignment[let1]) + 1
             else:
                 if stack_last(stack, base, current_length) == assignment[let1]:
                     stack_pop(stack, base, current_length)
                     current_length -= 1
                 if current_length == 0:
-                    transitions[(None, let1)][2 * i + 1] = 2
-                    transitions[(let1, None)][2 * i + 2] = 1
+                    transitions[('', let1)][2 * i + 1] = 2
+                    transitions[(let1, '')][2 * i + 2] = 1
                 else:
-                    transitions[(None, let1)][2 * i + 1] = 2 * stack + 1
-                    transitions[(let1, None)][2 * i + 2] = 2 * stack + 2
+                    transitions[('', let1)][2 * i + 1] = 2 * stack + 1
+                    transitions[(let1, '')][2 * i + 2] = 2 * stack + 2
     return (FSA.BFS(FSA.FSA(states, trueAccepts, alph, transitions)), FSA.BFS(FSA.FSA(states, tieAccepts, alph, transitions)))
 
 def rightrpo(ordering, length):

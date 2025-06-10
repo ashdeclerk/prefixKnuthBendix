@@ -26,17 +26,17 @@ w = ['a', 'a', 'a', 'a', 'c', 'a', 'c', 'a', 'b', 'c', 'a', 'a', 'c', 'c', 'c', 
 
 class TestRepresentations:
     def test_repr_1(self):
-        assert repr(f) == "FSA(3, {0, 1}, ('a', 'b', 'c'), {'a': [0, 0, 1], 'b': [0, 0, 1], 'c': [0, 2, 0]})"
+        assert repr(f) == "FSA(3, [0, 1], ('a', 'b', 'c'), {'a': [0, 0, 1], 'b': [0, 0, 1], 'c': [0, 2, 0]})"
 
     def test_repr_2(self):
-        assert repr(g) == "FSA(7, {2, 3, 6}, ('a', 'b', 'c'), {'a': [3, 5, 3, 5, 6, 4, 3], 'b': [6, 2, 1, 1, 6, 5, 1], 'c': [5, 0, 2, 2, 3, 4, 4]})"
+        assert repr(g) == "FSA(7, [2, 3, 6], ('a', 'b', 'c'), {'a': [3, 5, 3, 5, 6, 4, 3], 'b': [6, 2, 1, 1, 6, 5, 1], 'c': [5, 0, 2, 2, 3, 4, 4]})"
 
     def test_repr_3(self):
-        assert repr(h) == "FSA(11, {0, 1, 5, 7, 9}, ('a', 'b', 'c'), {'a': [5, 6, 0, 4, 8, 6, 2, 8, 8, 4, 3], 'b': [1, 1, 4, 4, 1, 8, 10, 3, 5, 5, 4], 'c': [8, 5, 7, 7, 6, 7, 1, 7, 2, 2, 8]})"
+        assert repr(h) == "FSA(11, [0, 1, 5, 7, 9], ('a', 'b', 'c'), {'a': [5, 6, 0, 4, 8, 6, 2, 8, 8, 4, 3], 'b': [1, 1, 4, 4, 1, 8, 10, 3, 5, 5, 4], 'c': [8, 5, 7, 7, 6, 7, 1, 7, 2, 2, 8]})"
 
     def test_string_1(self):
         assert str(f) == """Number of states: 3
-Accepting states: {0, 1}
+Accepting states: [0, 1]
 Alphabet: ('a', 'b', 'c')
 Transitions: {
     a: [0, 0, 1]
@@ -46,7 +46,7 @@ Transitions: {
 
     def test_string_2(self):
         assert str(g) == """Number of states: 7
-Accepting states: {2, 3, 6}
+Accepting states: [2, 3, 6]
 Alphabet: ('a', 'b', 'c')
 Transitions: {
     a: [3, 5, 3, 5, 6, 4, 3]
@@ -56,7 +56,7 @@ Transitions: {
 
     def test_string_3(self):
         assert str(h) == """Number of states: 11
-Accepting states: {0, 1, 5, 7, 9}
+Accepting states: [0, 1, 5, 7, 9]
 Alphabet: ('a', 'b', 'c')
 Transitions: {
     a: [5, 6, 0, 4, 8, 6, 2, 8, 8, 4, 3]

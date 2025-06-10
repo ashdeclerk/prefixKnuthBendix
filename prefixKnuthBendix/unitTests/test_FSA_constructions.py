@@ -5,18 +5,18 @@ This file tests FSA constructions, i.e.
 - Unions
 - Concatenations (note that this won't play nice with synchronous multi-tape FSAs)
 - Intersections
-- Kleene stars
+- Kleene stars (not used in pKB)
 - Products
 - Projections
 - FSAs accepting a single given word
 - Complements
 - Breadth-first-search normal forms for FSAs
-- Quotients
-- Strict quotients (in the sense of )
-- Substitutions
-- Inverse homomorphisms
-- Reversing FSAs (note that this won't play nice with synchronous multi-tape FSAs)
-- Concatenation of a synchronous multi-tape FSA with a single word (this *does* work)
+- Quotients (not used in pKB)
+- Strict quotients (not used in pKB)
+- Substitutions (not used in pKB)
+- Inverse homomorphisms (not used in pKB)
+- Reversing FSAs (note that this won't play nice with synchronous multi-tape FSAs) (not used in pKB)
+- Concatenation of a synchronous multi-tape FSA with a single word (this *does* work) (not used in pKB)
 - FSA accepting the synchronous language {(uw, vw) | w in A*} for specific u, v
 """
 
@@ -129,3 +129,16 @@ class TestQuotient:
         good_suffix = FSA(4, {2}, ('a', 'b'), {'a': [1, 3, 3, 3], 'b': [3, 2, 3, 3]})
         all_prefixes = FSA(3, {0}, ('a', 'b'), {'a': [1, 2, 0], 'b': [0, 1, 2]})
         assert quotient(all_prefixes, good_suffix) == BFS(FSA(3, {2}, ('a', 'b'), {'a': [1, 2, 0], 'b': [0, 1, 2]}))
+
+class TestStrictQuotient:
+    # I'm calling this out here, just for my own sanity:
+    # Strict quotients aren't really documented in Hopcroft and Ullman, or 
+    # any of the other sources I've perused as far as I can tell, but they
+    # are a very reasonable construction to consider.
+    # The strict quotient L1 // L2 (using integer division notation for lack of
+    # defined notation here) is {x | xy is in L1 for all y in L2}.
+    # The standard quotient only requires existence of some y with the appropriate
+    # property.
+    # This isn't actually used in pKB, but I have it in the FSA module, so...
+    def test_strict_quotient_1(self):
+        pass
