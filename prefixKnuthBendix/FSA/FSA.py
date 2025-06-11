@@ -19,7 +19,7 @@ class FSA:
     def __init__(self, states, accepts, alphabet, transitions):
         self.states = states
         self.accepts = list(accepts)
-        self.alphabet = tuple(alphabet)
+        self.alphabet = tuple(sorted(alphabet))
         self.transitions = copy.deepcopy(transitions)
 
     def __repr__(self):
@@ -210,7 +210,7 @@ def product(fsa1, fsa2):
                 transitions[lettuple][i * (fsa2.states + 1) + j] = (fsa1.states) * (fsa2.states + 1) + fsa2.transitions[let2][j]
         for j in range(0, fsa2.states):
             transitions[lettuple][(fsa1.states) * (fsa2.states + 1) + j] = (fsa1.states) * (fsa2.states + 1) + fsa2.transitions[let2][j]
-    return FSA(states, accepts, alphabet, transitions)
+    return BFS(FSA(states, accepts, alphabet, transitions))
 
 def clean_padding(FSA):
     arity = copy.deepcopy(FSA.alphabet)
