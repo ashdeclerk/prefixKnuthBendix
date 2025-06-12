@@ -690,8 +690,6 @@ def concatenation(f, g):
         processed_states += 1
     return BFS(FSA(states, accepting_states, alph, transitions))
 
-    
-
 def diagonal(alph):
     states = 2
     accepts = {0}
@@ -707,27 +705,81 @@ def diagonal(alph):
     for let in alph:
         transitions[(let, let)][0] = 0
     return FSA(states, accepts, alphabet, transitions)
-    
-def projection(fsa, indices):
-    out = nondeterminize(fsa)
-    alphabet = set()
-    transitions = {}
-    for let in out.alphabet:
-        if len(indices) > 1:
-            newLet = tuple(let[i] for i in indices)
-        else:
-            newLet = let[indices[0]]
-        if not newLet in alphabet:
-            alphabet.update({newLet})
-            transitions[newLet] = []
-            for i in range(0, out.states):
-                transitions[newLet].append(set())
-        for state in range(0, out.states):
-            transitions[newLet][state].update(out.transitions[let][state])
-    out.alphabet = alphabet
-    out.transitions = transitions
-    return BFS(determinize(out))
 
+def projection(fsa, indices):
+    alph = []
+    letter_map = {}
+    if len(indices) > 1:
+        null_letter = ('',) * len(indices)
+        letter_map[null_letter] = []
+        for let in fsa.alphabet:
+            new_let = tuple(let[i] for i in indices)
+            if new_let not in alph and new_let != null_letter:
+                alph.append(new_let)
+                letter_map[new_let] = []
+            letter_map[new_let].append(let)
+    else:
+        null_letter = ''
+        letter_map[null_letter] = []
+        for let in fsa.alphabet:
+            new_let = let[indices[0]]
+            if new_let not in alph and new_let != null_letter:
+                alph.append(new_let)
+                letter_map[new_let] = []
+            letter_map[new_let].append(let)
+    alph = sorted(alph)
+    # We've handled the alphabet. Now we need to handle the transitions, states, and accepting states.
+    states = 1
+    processed_states = 0
+    accepting_states = []
+    # Dealing with epsilon transitions is a huge pain in the butt.
+    starting_state_description = [0]
+    i = 0
+    while i < len(starting_state_description):
+        state_to_check = starting_state_description[i]
+        for let in letter_map[null_letter]:
+            target = fsa.transitions[let][state_to_check]
+            if target not in starting_state_description:
+                starting_state_description.append(target)
+        i += 1
+    starting_state_description = tuple(sorted(starting_state_description))
+    if any((s in fsa.accepts for s in starting_state_description)):
+        accepting_states.append(0)
+    state_number_to_state_description = [starting_state_description]
+    state_description_to_state_number = {starting_state_description: 0}
+    transitions = {}
+    for let in alph:
+        transitions[let] = []
+    while processed_states < states:
+        current_state_description = state_number_to_state_description[processed_states]
+        for let in alph:
+            target_state_description = []
+            for s in current_state_description:
+                for super_letter in letter_map[let]:
+                    next_state = fsa.transitions[super_letter][s]
+                    if next_state not in target_state_description:
+                        target_state_description.append(next_state)
+            # I hate epsilon transitions *so much*.
+            i = 0
+            while i < len(target_state_description):
+                state_to_check = target_state_description[i]
+                for epsilon in letter_map[null_letter]:
+                    target = fsa.transitions[epsilon][state_to_check]
+                    if target not in target_state_description:
+                        target_state_description.append(target)
+                i += 1
+            target_state_description = tuple(sorted(target_state_description))
+            if target_state_description in state_description_to_state_number:
+                transitions[let].append(state_description_to_state_number[target_state_description])
+            else:
+                if any((s in fsa.accepts for s in target_state_description)):
+                    accepting_states.append(states)
+                transitions[let].append(states)
+                state_description_to_state_number[target_state_description] = states
+                state_number_to_state_description.append(target_state_description)
+                states += 1
+        processed_states += 1
+    return BFS(FSA(states, accepting_states, alph, transitions))
 
 def random_FSA(minStates, maxStates, acceptRate, alph):
     states = random.randint(minStates, maxStates)
