@@ -12,11 +12,11 @@ This file tests FSA constructions, i.e.
 - Complements
 - Breadth-first-search normal forms for FSAs
 - Quotients (not used in pKB)
-- Strict quotients (not used in pKB)
-- Substitutions (not used in pKB)
-- Inverse homomorphisms (not used in pKB)
-- Reversing FSAs (note that this won't play nice with synchronous multi-tape FSAs) (not used in pKB)
-- Concatenation of a synchronous multi-tape FSA with a single word (this *does* work) (not used in pKB)
+- Strict quotients (not used in pKB, not yet tested)
+- Substitutions (not used in pKB, not yet tested)
+- Inverse homomorphisms (not used in pKB, not yet tested)
+- Reversing FSAs (note that this won't play nice with synchronous multi-tape FSAs) (not used in pKB, not yet tested)
+- Concatenation of a synchronous multi-tape FSA with a single word (this *does* work) (not used in pKB, not yet tested)
 - FSA accepting the synchronous language {(uw, vw) | w in A*} for specific u, v
 """
 

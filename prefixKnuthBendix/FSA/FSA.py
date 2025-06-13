@@ -800,6 +800,7 @@ def random_FSA(minStates, maxStates, acceptRate, alph):
     return FSA(states, accepts, alph, transitions)
 
 def single_substitution(fsa1, letter, fsa2):
+    # This is not properly tested. Use at your own risk.
     nfa1 = nondeterminize(fsa1)
     for let in fsa2.alphabet:
         if let not in fsa1.alphabet:
@@ -819,6 +820,7 @@ def single_substitution(fsa1, letter, fsa2):
     return BFS(determinize(nfa1))
 
 def inverse_homomorphism(fsa, hom):
+    # This is not properly tested. Use at your own risk.
     alph = set(hom.keys())
     states = fsa.states
     accepts = fsa.accepts
@@ -833,12 +835,14 @@ def inverse_homomorphism(fsa, hom):
     return BFS(FSA(states, accepts, alph, transitions))
 
 class RegularGrammar:
+    # This is not properly tested. Use at your own risk.
     def __init__(self, variables, terminals, rules):
         self.variables = variables
         self.terminals = terminals
         self.rules = rules
 
 def NFA_from_grammar(grammar):
+    # This is not properly tested. Use at your own risk.
     states = len(grammar.variables)
     accepts = set()
     transitions = {}
@@ -877,6 +881,7 @@ def NFA_from_grammar(grammar):
     return NFA(states, accepts, grammar.terminals, transitions)
 
 def reverse(nfa):
+    # This is not properly tested. Use at your own risk.
     states = nfa.states + 1
     transitions = {}
     for let in nfa.alphabet:
@@ -895,12 +900,14 @@ def reverse(nfa):
 
 class regularGrammar:
 
+    # This is not properly tested. Use at your own risk.
     def __init__(self, terminals, nonTerminals, rules, start):
         self.terminals = terminals
         self.nonTerminals = nonTerminals
         self.rules = rules
 
 def right_grammar_to_FSA(grammar):
+    # This is not properly tested. Use at your own risk.
     alph = grammar.terminals
     states = {grammar.start: 0}
     i = 1
@@ -921,6 +928,7 @@ def right_grammar_to_FSA(grammar):
     pass
 
 def sync_singleton_concatenate(fsa, word):
+    # This is not properly tested. Use at your own risk.
     transitions = {}
     for let in fsa.alphabet:
         transitions[let] = [0]
