@@ -1055,4 +1055,4 @@ def singletons_diagonal_concatenate(word1, word2, alph):
     if minlen == 0:
         # Oops, special case.
         out.change_init(starting_debt)
-    return out
+    return BFS(out)
