@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: If you use this software, please cite it using these metadata.
+title: prefix-Knuth-Bendix
+abstract: This is an implementation of the prefix-Knuth-Bendix completion procedure for autostackable structures.
+authors:
+- family-names: DeClerk
+  given-names: Ash
+version: 1.0.0
+date-released: 2025-06-12
+repository-code: "https://github.com/ashdeclerk/prefixKnuthBendix"
