@@ -42,7 +42,7 @@ class FSA:
                 return False
             if sorted(other.alphabet) != sorted(self.alphabet):
                 return False
-            if other.states != self.states:
+            if other.accepts != self.accepts:
                 return False
             if other.transitions != self.transitions:
                 return False
@@ -86,6 +86,11 @@ class FSA:
     def remove_state(self, index):
         if index <= self.states:
             self.states -= 1
+            if index in self.accepts:
+                self.accepts.remove(index)
+            for i in range(len(self.accepts)):
+                if self.accepts[i] > index:
+                    self.accepts[i] -= 1
             for letter in self.alphabet:
                 del self.transitions[letter][index]
                 for i in range(0, self.states):
@@ -242,7 +247,7 @@ def single_word_FSA(alph, word):
     for index in range(0, len(word)):
         transitions[word[index]][index] = index + 1
     accepts = {states - 2}
-    return FSA(states, accepts, alphabet, transitions)
+    return BFS(FSA(states, accepts, alphabet, transitions))
 
 def empty_FSA(alph):
     states = 1
