@@ -221,3 +221,13 @@ class TestProjection:
         b = BFS(FSA(3, [2], ('a', 'b'),
                     {'a': [1, 1, 1], 'b': [0, 2, 0]}))
         assert projection(a, [0]) == b
+
+class TestComplement:
+    def test_complement_1(self):
+        assert complement(f) == FSA(1, [], ('a', 'b', 'c'), {'a': [0], 'b': [0], 'c': [0]})
+
+    def test_complement_2(self):
+        assert complement(g) == FSA(7, {0, 3, 4, 6}, ('a', 'b', 'c'), {'a': [1, 3, 1, 6, 3, 1, 2], 'b': [2, 4, 4, 3, 5, 4, 2], 'c': [3, 5, 6, 6, 0, 5, 1]})
+    
+    def test_complement_3(self):
+        assert complement(h) == FSA(10, {3, 4, 6, 7, 8, 9}, ('a', 'b', 'c'), {'a': [1, 4, 4, 3, 6, 3, 0, 8, 9, 3], 'b': [2, 3, 2, 1, 7, 8, 9, 9, 9, 2], 'c': [3, 5, 1, 6, 2, 5, 5, 3, 5, 4]})

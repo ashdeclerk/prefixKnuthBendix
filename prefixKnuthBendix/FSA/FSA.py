@@ -144,7 +144,7 @@ def freeze(fsa):
 def complement(fsa):
     acc = set(range(fsa.states))
     acc.difference_update(fsa.accepts)
-    return FSA(fsa.states, acc, fsa.alphabet, fsa.transitions)
+    return BFS(FSA(fsa.states, acc, fsa.alphabet, fsa.transitions))
 
 
 def product(fsa1, fsa2):
