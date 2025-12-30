@@ -282,77 +282,75 @@ def subtract_list(list1, list2):
     return out
 
 def BFS(fsa):
-    alphabet = fsa.alphabet
-    P = []
-    W = []
-    if len(fsa.accepts) > 0:
-        P.append(fsa.accepts)
-        W.append(fsa.accepts)
-    nonAcc = set(range(0, fsa.states)).difference(fsa.accepts)
-    if len(nonAcc) > 0:
-        P.append(nonAcc)
-        W.append(nonAcc)
-    del nonAcc
-    while len(W) > 0:
-        A = W.pop(0)
-        for let in alphabet:
-            X = []
-            for state in range(0, fsa.states):
-                if fsa.transitions[let][state] in A:
-                    X.append(state)
-            for Y in P:
-                if len(intersect_lists(Y, X)) > 0 and len(subtract_list(Y, X)) > 0:
-                    P.remove(Y)
-                    P.append(intersect_lists(Y, X))
-                    P.append(subtract_list(Y, X))
-                    if W.count(Y) > 0:
-                        W.remove(Y)
-                        W.append(intersect_lists(Y, X))
-                        W.append(subtract_list(Y, X))
-                    else:
-                        W.append(intersect_lists(Y, X))
-    states = len(P)
-    accepts = set()
-    transitions = {}
-    for let in alphabet:
-        transitions[let] = [0] * (states)
-    for i in range(0, len(P)):
-        if 0 in P[i]:
-            P.insert(0, P.pop(i))
-    for i in range(0, len(P)):
-        if list(P[i])[0] in fsa.accepts:
-            accepts.update({i})
-        for let in alphabet:
-            for j in range(0, len(P)):
-                if fsa.transitions[let][list(P[i])[0]] in P[j]:
-                    transitions[let][i] = j
-    relabeling = {0: 0}
-    unrelabeling = {0: 0}
-    location = 0
-    counter = 1
-    newStates = states
-    while counter <= len(P):
-        for let in alphabet:
-            if transitions[let][location] not in relabeling:
-                relabeling[transitions[let][location]] = counter
-                unrelabeling[counter] = transitions[let][location]
-                counter += 1
-        location = relabeling[location] + 1
-        if location >= counter:
-            newStates = counter
-            break
-        location = unrelabeling[location]
-    newAccepts = set()
-    for state in accepts:
-        if state in relabeling.keys():
-            newAccepts.update({relabeling[state]})
-    newTransitions = {}
-    for let in alphabet:
-        newTransitions[let] = [0] * (newStates)
-        for state in range(0, states):
-            if state in relabeling.keys():
-                newTransitions[let][relabeling[state]] = relabeling[transitions[let][state]]
-    return FSA(newStates, newAccepts, alphabet, newTransitions)
+    # The BFS algorithm I borrowed from Hopcroft and Ullman wasn't working out
+    # (probably an implementation error), and I couldn't figure out why,
+    # so we're going with a brand new version!
+    # For this explanation I'll be thinking of new states as being sets of
+    # old states.
+    # We start with two lists, one indicating which new state each old state
+    # belongs to, the other indicating which old states belong to each new state.
+    # There are two new states at the start, one for accepting old states, one for
+    # non-accepting old states.
+    old_to_new = []
+    new_accepting = 1 - int(0 in fsa.accepts)
+    new_non_accepting = int(0 in fsa.accepts)
+    new_to_old = [[], []]
+    for state in range(fsa.states):
+        if state in fsa.accepts:
+            old_to_new.append(new_accepting)
+            new_to_old[new_accepting].append(state)
+        else:
+            old_to_new.append(new_non_accepting)
+            new_to_old[new_non_accepting].append(state)
+    if new_to_old[1] == []:
+        if 0 in fsa.accepts:
+            return FSA(1, [0], fsa.alphabet, {let: [0] for let in fsa.alphabet})
+        else:
+            return FSA(1, [], fsa.alphabet, {let: [0] for let in fsa.alphabet})
+    # Then we loop through new states to check if any old states can be distinguished
+    # from the first old state in their new state, and split the new state
+    # appropriately.
+    split = True
+    while split:
+        split = False
+        for new_state in new_to_old:
+            good_transitions = {let: old_to_new[fsa.transitions[let][new_state[0]]] for let in fsa.alphabet}
+            bad_transitions = []
+            splitting_states = []
+            for old_state in new_state[1:]:
+                test_transitions = {let: old_to_new[fsa.transitions[let][old_state]] for let in fsa.alphabet}
+                if bad_transitions != []:
+                    if test_transitions in bad_transitions:
+                        splitting_states[bad_transitions.index(test_transitions)].append(old_state)
+                elif test_transitions != good_transitions:
+                    bad_transitions.append(test_transitions)
+                    splitting_states.append([old_state])
+            if bad_transitions != []:
+                split = True
+                for s in splitting_states:
+                    for old_state in s:
+                        old_to_new[old_state] = len(new_to_old)
+                        new_state.remove(old_state)
+                    new_to_old.append(s)
+    # Once we've reduced to only "true" new states, we go through the new states
+    # in a breadth-first search pattern to generate the actual transition function.
+    # In this process, we also prune any unreachable states (by virtue of just not
+    # including them) and update the accepting states appropriately. 
+    transitions = {let: [] for let in fsa.alphabet}
+    accepts = []
+    unprocessed_states = [0]
+    new_state_numbers = {0: 0}
+    while len(unprocessed_states) > 0:
+        state_to_process = unprocessed_states.pop(0)
+        if new_to_old[state_to_process][0] in fsa.accepts:
+            accepts.append(new_state_numbers[state_to_process])
+        state_transitions = {let: old_to_new[fsa.transitions[let][new_to_old[state_to_process][0]]] for let in fsa.alphabet}
+        for let in fsa.alphabet:
+            if not state_transitions[let] in new_state_numbers:
+                unprocessed_states.append(state_transitions[let])
+                new_state_numbers[state_transitions[let]] = len(new_state_numbers)
+            transitions[let].append(new_state_numbers[state_transitions[let]])
+    return FSA(len(new_state_numbers), accepts, fsa.alphabet, transitions)
 
 
 
