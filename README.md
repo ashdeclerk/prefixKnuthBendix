@@ -13,16 +13,3 @@ parent directory (i.e. the way the repo is currently set up -- with
 I highly recommend reading through the examples `Cox333pKB.py` and `BS12pKB.py`
 (ideally in that order) to see how to set up a group for pKB. You can also email
 me at ash.declerk@gmail.com if you need help.
-
-# TODO
-- [ ] Set up proper testing for the various submodules
-- [ ] Make a standalone "tell me what group and ordering you want"
-  - [ ] From file as command line arg
-  - [ ] From command line prompting (as gens/rels/ord or as file)
-- [ ] Make a log parser
-- [ ] Add "pick back up from where this log left off" functionality
-- [ ] Write the paper (not really a programming thing, but still important)
-- [ ] Add functionality to AutostackableStructure
-  - [ ] Normal forms
-  - [ ] Rewriting words
-- [ ] THEN you get to play with knot groups and whatever else, Ash.
